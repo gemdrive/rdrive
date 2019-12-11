@@ -1,19 +1,29 @@
 const fs = require('fs');
 const path = require('path');
-const http = require('patchbay-http');
 
-
-const requestPrefix = 'pb-req-';
-const responsePrefix = 'pb-res-';
 
 class WebFSServer {
+  constructor(options) {
+    if (options && options.httpServer) {
+      this.httpServer = options.httpServer;
+    }
+    else {
+      throw new Error("need server");
+    }
+
+    this.rootPath = '/';
+    if (options && options.rootPath) {
+      this.rootPath = options.rootPath;
+    }
+
+    this.port = 3000;
+  }
+
   async start() {
-    const rootChannel = '/webfs-test';
-    const prefix = '/req' + rootChannel;
 
-    this.httpServer = http.createServer(async (req, res) => {
-      const reqPath = req.url.slice(prefix.length);
+    this.httpServer.on('request', async (req, res) => {
 
+      const reqPath = req.url.slice(this.rootPath.length);
 
       if (reqPath.endsWith('webfs.json')) {
 
@@ -28,10 +38,7 @@ class WebFSServer {
       }
     });
 
-    this.httpServer.setPatchbayServer('https://patchbay.pub');
-    //srv.setPatchbayServer('http://localhost:9001');
-    this.httpServer.setPatchbayChannel(rootChannel);
-    this.httpServer.listen();
+    this.httpServer.listen(this.port);
   }
 }
 
@@ -54,7 +61,7 @@ async function serveFile(req, res, reqPath) {
     return;
   }
 
-  const rangeHeader = req.headers['pb-req-range'];
+  const rangeHeader = req.headers['range'];
 
   // TODO: parse byte range specs properly according to
   // https://tools.ietf.org/html/rfc7233
@@ -73,7 +80,7 @@ async function serveFile(req, res, reqPath) {
 
     const originalSize = stats.size;
 
-    res.setHeader(responsePrefix + 'Content-Range', `bytes ${range.start}-${range.end}/${originalSize}`);
+    res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${originalSize}`);
     res.statusCode = 206;
 
     //sendFile = sendFile.slice(range.start, range.end + 1);
@@ -83,11 +90,11 @@ async function serveFile(req, res, reqPath) {
     });
   }
   else {
-    res.setHeader(responsePrefix + 'Content-Length', `${stats.size}`);
+    res.setHeader('Content-Length', `${stats.size}`);
     stream = fs.createReadStream(fsPath);
   }
 
-  res.setHeader(responsePrefix + 'Accept-Ranges', 'bytes');
+  res.setHeader('Accept-Ranges', 'bytes');
 
   stream.on('error', (e) => {
     res.statusCode = 404;
@@ -152,8 +159,8 @@ async function buildWebfsDir(fsPath) {
   return webfs;
 }
 
-function createWebFSServer() {
-  return new WebFSServer();
+function createWebFSServer(options) {
+  return new WebFSServer(options);
 }
 
 module.exports = {
