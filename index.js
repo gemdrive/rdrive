@@ -19,18 +19,7 @@ class WebFSServer {
 
         const fsPath = path.join('./', path.dirname(reqPath));
 
-        let dir;
-        try {
-          dir = await fs.promises.readdir(fsPath, { withFileTypes: true });
-        }
-        catch (e) {
-          res.setHeader('Pb-Status', '404');
-          res.write("Not Found");
-          res.end();
-          return;
-        }
-
-        const webfs = buildWebfsDir(dir);
+        const webfs = await buildWebfsDir(fsPath);
         res.write(JSON.stringify(webfs, null, 2));
         res.end();
       }
@@ -54,7 +43,16 @@ async function serveFile(req, res, reqPath) {
 
   const fsPath = path.join('./', reqPath);
 
-  const stats = await fs.promises.stat(fsPath);
+  let stats
+  try {
+    stats = await fs.promises.stat(fsPath);
+  }
+  catch (e) {
+    res.setHeader('Pb-Status', '404');
+    res.write("Not Found");
+    res.end();
+    return;
+  }
 
   const rangeHeader = req.headers['pb-req-range'];
 
@@ -83,7 +81,7 @@ async function serveFile(req, res, reqPath) {
     //sendFile = sendFile.slice(range.start, range.end + 1);
     stream = fs.createReadStream(fsPath, {
       start: range.start,
-      end: range.end + 1,
+      end: range.end,
     });
   }
   else {
@@ -101,18 +99,33 @@ async function serveFile(req, res, reqPath) {
   stream.pipe(res);
 }
 
-function buildWebfsDir(dir) {
+async function buildWebfsDir(fsPath) {
+
+  let dir;
+  try {
+    dir = await fs.promises.readdir(fsPath, { withFileTypes: true });
+  }
+  catch (e) {
+    res.setHeader('Pb-Status', '404');
+    res.write("Not Found");
+    res.end();
+    return;
+  }
+
+
   const webfs = {};
 
   for (const child of dir) {
     if (child.isDirectory()) {
       webfs[child.name] = {
         type: 'dir',
+        size: child.size,
       };
     }
     else {
       webfs[child.name] = {
         type: 'file',
+        size: child.size,
       };
     }
   }
