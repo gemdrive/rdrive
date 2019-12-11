@@ -1,5 +1,5 @@
 {
-  "name": "patchbay-webfs",
+  "name": "webfs-server",
   "version": "0.1.0",
   "description": "",
   "main": "index.js",
@@ -7,8 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "patchbay-webfs": "./cli.js"
+    "webfs-server": "./cli.js"
   },
-  "author": "",
-  "license": "ISC"
+  "author": "Anders Pitman",
+  "license": "MIT"
 }
