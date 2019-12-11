@@ -2,44 +2,29 @@ const fs = require('fs');
 const path = require('path');
 
 
-class WebFSServer {
-  constructor(options) {
-    if (options && options.httpServer) {
-      this.httpServer = options.httpServer;
+function createHandler(options) {
+
+  let rootPath = '/';
+
+  if (options && options.rootPath) {
+    rootPath = options.rootPath;
+  }
+
+  return async function(req, res) {
+    const reqPath = req.url.slice(rootPath.length);
+
+    if (reqPath.endsWith('webfs.json')) {
+
+      const fsPath = path.join('./', path.dirname(reqPath));
+
+      const webfs = await buildWebfsDir(fsPath);
+      res.write(JSON.stringify(webfs, null, 2));
+      res.end();
     }
     else {
-      throw new Error("need server");
+      serveFile(req, res, reqPath); 
     }
-
-    this.rootPath = '/';
-    if (options && options.rootPath) {
-      this.rootPath = options.rootPath;
-    }
-
-    this.port = 3000;
-  }
-
-  async start() {
-
-    this.httpServer.on('request', async (req, res) => {
-
-      const reqPath = req.url.slice(this.rootPath.length);
-
-      if (reqPath.endsWith('webfs.json')) {
-
-        const fsPath = path.join('./', path.dirname(reqPath));
-
-        const webfs = await buildWebfsDir(fsPath);
-        res.write(JSON.stringify(webfs, null, 2));
-        res.end();
-      }
-      else {
-        serveFile(req, res, reqPath); 
-      }
-    });
-
-    this.httpServer.listen(this.port);
-  }
+  };
 }
 
 async function serveFile(req, res, reqPath) {
@@ -159,10 +144,7 @@ async function buildWebfsDir(fsPath) {
   return webfs;
 }
 
-function createWebFSServer(options) {
-  return new WebFSServer(options);
-}
 
 module.exports = {
-  createWebFSServer
+  createHandler,
 };

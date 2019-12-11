@@ -2,12 +2,8 @@
 
 const process = require('process');
 const http = require('http');
-const { createWebFSServer } = require('./index.js');
+const { createHandler } = require('./index.js');
 
-const httpServer = http.createServer();
-
-const srv = createWebFSServer({
-  httpServer,
-});
-
-srv.start();
+const webfsHandler = createHandler();
+const httpServer = http.createServer(webfsHandler);
+httpServer.listen(3000);
