@@ -101,9 +101,9 @@ async function serveFile(req, res, reqPath) {
 
 async function buildWebfsDir(fsPath) {
 
-  let dir;
+  let filenames;
   try {
-    dir = await fs.promises.readdir(fsPath, { withFileTypes: true });
+    filenames = await fs.promises.readdir(fsPath);
   }
   catch (e) {
     res.setHeader('Pb-Status', '404');
@@ -113,22 +113,43 @@ async function buildWebfsDir(fsPath) {
   }
 
 
-  const webfs = {};
+  const webfs = {
+    type: 'dir',
+    children: {},
+  };
 
-  for (const child of dir) {
-    if (child.isDirectory()) {
-      webfs[child.name] = {
+  let totalSize = 0;
+
+  for (const filename of filenames) {
+    const childPath = path.join(fsPath, filename);
+
+    let stats;
+    try {
+      stats = await fs.promises.stat(childPath);
+    }
+    catch (e) {
+      console.error("This one shouldn't happen");
+      console.error(e);
+      continue;
+    }
+
+    totalSize += stats.size;
+
+    if (stats.isDirectory()) {
+      webfs.children[filename] = {
         type: 'dir',
-        size: child.size,
+        size: stats.size,
       };
     }
     else {
-      webfs[child.name] = {
+      webfs.children[filename] = {
         type: 'file',
-        size: child.size,
+        size: stats.size,
       };
     }
   }
+
+  webfs.size = totalSize;
 
   return webfs;
 }
