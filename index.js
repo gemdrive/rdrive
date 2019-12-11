@@ -48,7 +48,7 @@ async function serveFile(req, res, reqPath) {
     stats = await fs.promises.stat(fsPath);
   }
   catch (e) {
-    res.setHeader('Pb-Status', '404');
+    res.statusCode = 404;
     res.write("Not Found");
     res.end();
     return;
@@ -71,12 +71,10 @@ async function serveFile(req, res, reqPath) {
       range.end = Number(rangeParts[1]);
     }
 
-    console.log(range);
-
     const originalSize = stats.size;
 
     res.setHeader(responsePrefix + 'Content-Range', `bytes ${range.start}-${range.end}/${originalSize}`);
-    res.setHeader('Pb-Status', '206');
+    res.statusCode = 206;
 
     //sendFile = sendFile.slice(range.start, range.end + 1);
     stream = fs.createReadStream(fsPath, {
@@ -92,7 +90,7 @@ async function serveFile(req, res, reqPath) {
   res.setHeader(responsePrefix + 'Accept-Ranges', 'bytes');
 
   stream.on('error', (e) => {
-    res.setHeader('Pb-Status', '404');
+    res.statusCode = 404;
     res.write("Not Found");
     res.end();
   });
@@ -106,7 +104,7 @@ async function buildWebfsDir(fsPath) {
     filenames = await fs.promises.readdir(fsPath);
   }
   catch (e) {
-    res.setHeader('Pb-Status', '404');
+    res.statusCode = 404;
     res.write("Not Found");
     res.end();
     return;
