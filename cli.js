@@ -4,6 +4,6 @@ const process = require('process');
 const http = require('http');
 const { createHandler } = require('./index.js');
 
-const webfsHandler = createHandler();
-const httpServer = http.createServer(webfsHandler);
+const remfsHandler = createHandler();
+const httpServer = http.createServer(remfsHandler);
 httpServer.listen(3000);

@@ -13,12 +13,12 @@ function createHandler(options) {
   return async function(req, res) {
     const reqPath = req.url.slice(rootPath.length);
 
-    if (reqPath.endsWith('webfs.json')) {
+    if (reqPath.endsWith('remfs.json')) {
 
       const fsPath = path.join('./', path.dirname(reqPath));
 
-      const webfs = await buildWebfsDir(fsPath);
-      res.write(JSON.stringify(webfs, null, 2));
+      const remfs = await buildRemfsDir(fsPath);
+      res.write(JSON.stringify(remfs, null, 2));
       res.end();
     }
     else {
@@ -94,7 +94,7 @@ async function serveFile(req, res, reqPath) {
   stream.pipe(res);
 }
 
-async function buildWebfsDir(fsPath) {
+async function buildRemfsDir(fsPath) {
 
   let filenames;
   try {
@@ -108,7 +108,7 @@ async function buildWebfsDir(fsPath) {
   }
 
 
-  const webfs = {
+  const remfs = {
     type: 'dir',
     children: {},
   };
@@ -131,22 +131,22 @@ async function buildWebfsDir(fsPath) {
     totalSize += stats.size;
 
     if (stats.isDirectory()) {
-      webfs.children[filename] = {
+      remfs.children[filename] = {
         type: 'dir',
         size: stats.size,
       };
     }
     else {
-      webfs.children[filename] = {
+      remfs.children[filename] = {
         type: 'file',
         size: stats.size,
       };
     }
   }
 
-  webfs.size = totalSize;
+  remfs.size = totalSize;
 
-  return webfs;
+  return remfs;
 }
 
 
