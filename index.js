@@ -81,6 +81,11 @@ async function serveFile(req, res, reqPath) {
 
   res.setHeader('Accept-Ranges', 'bytes');
 
+  const mime = getMime(path.extname(reqPath));
+  if (mime) {
+    res.setHeader('Content-Type', mime);
+  }
+
   stream.on('error', (e) => {
     res.statusCode = 404;
     res.write("Not Found");
@@ -142,6 +147,22 @@ async function buildWebfsDir(fsPath) {
   webfs.size = totalSize;
 
   return webfs;
+}
+
+
+function getMime(ext) {
+  switch (ext) {
+    case '.js':
+      return 'application/javascript';
+    case '.json':
+      return 'application/json';
+    case '.html':
+      return 'text/html';
+    case '.css':
+      return 'text/css';
+    case '.jpeg':
+      return 'image/jpeg';
+  }
 }
 
 
