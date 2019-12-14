@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const url = require('url');
 
 
 function createHandler(options) {
@@ -11,7 +12,8 @@ function createHandler(options) {
   }
 
   return async function(req, res) {
-    const reqPath = req.url.slice(rootPath.length);
+    const u = url.parse(req.url); 
+    const reqPath = u.pathname.slice(rootPath.length);
 
     if (reqPath.endsWith('remfs.json')) {
 
@@ -199,11 +201,11 @@ async function buildRemfsDir(fsPath) {
   let totalSize = 0;
 
   for (const filename of filenames) {
-    const childPath = path.join(fsPath, filename);
+    const childFsPath = path.join(fsPath, filename);
 
     let stats;
     try {
-      stats = await fs.promises.stat(childPath);
+      stats = await fs.promises.stat(childFsPath);
     }
     catch (e) {
       console.error("This one shouldn't happen");
@@ -214,10 +216,11 @@ async function buildRemfsDir(fsPath) {
     totalSize += stats.size;
 
     if (stats.isDirectory()) {
-      remfs.children[filename] = {
-        type: 'dir',
-        size: stats.size,
-      };
+      //remfs.children[filename] = {
+      //  type: 'dir',
+      //  size: stats.size,
+      //};
+      remfs.children[filename] = await buildRemfsDir(childFsPath);
     }
     else {
       remfs.children[filename] = {
