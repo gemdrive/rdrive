@@ -13,7 +13,7 @@ function createHandler(options) {
 
   return async function(req, res) {
     const u = url.parse(req.url); 
-    const reqPath = u.pathname.slice(rootPath.length);
+    const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
 
     if (reqPath.endsWith('remfs.json')) {
 
@@ -247,6 +247,9 @@ function getMime(ext) {
     case '.css':
       return 'text/css';
     case '.jpeg':
+    case '.jpg':
+    case '.JPEG':
+    case '.JPG':
       return 'image/jpeg';
   }
 }
