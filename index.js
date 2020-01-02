@@ -251,6 +251,8 @@ function getMime(ext) {
     case '.JPEG':
     case '.JPG':
       return 'image/jpeg';
+    case '.svg':
+      return 'image/svg+xml';
   }
 }
 
