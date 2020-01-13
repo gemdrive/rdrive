@@ -198,6 +198,18 @@ async function buildRemfsDir(fsPath) {
     children: {},
   };
 
+  const localRemfsPath = path.join(fsPath, 'remfs.json');
+  try {
+    const localRemfsDataText = await fs.promises.readFile(localRemfsPath, {
+      encoding: 'utf8',
+    });
+    const localRemfsData = JSON.parse(localRemfsDataText);
+    Object.assign(remfs, localRemfsData);
+  }
+  catch (e) {
+    //console.log(e);
+  }
+
   let totalSize = 0;
 
   for (const filename of filenames) {
