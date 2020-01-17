@@ -31,6 +31,7 @@ function createHandler(options) {
 
 async function serveItem(req, res, rootPath, reqPath) {
 
+  res.setHeader('Cache-Control', 'max-age=3600');
   res.on('error', (e) => {
     console.error(e);
   });
@@ -50,7 +51,32 @@ async function serveItem(req, res, rootPath, reqPath) {
 
   // render simple html interface
   if (stats.isDirectory()) {
-    await renderHtmlDir(req, res, rootPath, reqPath, fsPath);
+    let isWebDir = false;
+    const localRemfsPath = path.join(fsPath, 'remfs.json');
+    try {
+      const localRemfsDataText = await fs.promises.readFile(localRemfsPath, {
+        encoding: 'utf8',
+      });
+      const localRemfsData = JSON.parse(localRemfsDataText);
+      isWebDir = localRemfsData.http && localRemfsData.http.isWebDir;
+    }
+    catch (e) {
+      //console.log(e);
+    }
+
+    if (isWebDir) {
+      const indexPath = path.join(fsPath, 'index.html');
+      const stream = fs.createReadStream(indexPath)
+      stream.on('error', (e) => {
+        res.statusCode = 404;
+        res.write("Not Found");
+        res.end();
+      });
+      stream.pipe(res);
+    }
+    else {
+      await renderHtmlDir(req, res, rootPath, reqPath, fsPath);
+    }
   }
   else {
 
