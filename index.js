@@ -58,7 +58,16 @@ async function serveItem(req, res, rootPath, reqPath) {
         encoding: 'utf8',
       });
       const localRemfsData = JSON.parse(localRemfsDataText);
-      isWebDir = localRemfsData.http && localRemfsData.http.isWebDir;
+      isWebDir = localRemfsData.ext.http && localRemfsData.ext.http.isWebDir;
+      redirect = localRemfsData.ext.http && localRemfsData.ext.http.redirect;
+
+      if (redirect) {
+        res.statusCode = 307;
+        res.setHeader('Location', redirect.location);
+        res.write("Temporary Redirect");
+        res.end();
+        return;
+      }
     }
     catch (e) {
       //console.log(e);
