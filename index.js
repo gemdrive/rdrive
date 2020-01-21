@@ -16,6 +16,23 @@ function createHandler(options) {
     const u = url.parse(req.url); 
     const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
 
+    if (req.headers['content-type'] === 'application/json') {
+      let data = '';
+      req.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(data);
+          console.log(body);
+        }
+        catch (e) {
+          console.error(e);
+        }
+      });
+    }
+
     if (reqPath.endsWith('remfs.json')) {
 
       const fsPath = path.join('./', path.dirname(reqPath));
