@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const { renderHtmlDir } = require('./render_html_dir.js');
+const { Pauth, Perms } = require('./pauth.js');
 
 
 function createHandler(options) {
@@ -12,26 +13,43 @@ function createHandler(options) {
     rootPath = options.rootPath;
   }
 
+  const autho = new Pauth();
+
   return async function(req, res) {
     const u = url.parse(req.url); 
     const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
 
+
     if (req.headers['content-type'] === 'application/json') {
-      let data = '';
-      req.on('data', (chunk) => {
-        data += chunk;
+
+      const token = await new Promise((resolve, reject) => {
+        let data = '';
+        req.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        req.on('end', async () => {
+          try {
+            const body = JSON.parse(data);
+            console.log(body);
+            if (body.method === 'authenticate') {
+              const token = await autho.authenticate(body.params.email);
+              resolve(token);
+            }
+          }
+          catch (e) {
+            reject(e);
+          }
+        });
       });
 
-      req.on('end', () => {
-        try {
-          const body = JSON.parse(data);
-          console.log(body);
-        }
-        catch (e) {
-          console.error(e);
-        }
-      });
+      res.write(token);
+      res.end();
+      return;
     }
+
+    //const remfs = await getRemfs(reqPath);
+    //const perms = new Perms(remfs.perms);
 
     if (reqPath.endsWith('remfs.json')) {
 
@@ -45,6 +63,50 @@ function createHandler(options) {
       serveItem(req, res, rootPath, reqPath); 
     }
   };
+}
+
+async function getRemfs(path) {
+  const parts = parsePath(path);
+
+  const remfs = {};
+  const localRemfs = await readLocalRemfs('./');
+  Object.assign(remfs, localRemfs);
+
+  let curPath = '.';
+  for (const part of parts) {
+    curPath += '/' + part;
+    console.log(curPath);
+    const localRemfs = await readLocalRemfs(curPath);
+    Object.assign(remfs, localRemfs);
+  }
+
+  return remfs;
+}
+
+async function readLocalRemfs(fsPath) {
+  const localRemfsPath = path.join(fsPath, 'remfs.json');
+  try {
+    const localRemfsDataText = await fs.promises.readFile(localRemfsPath, {
+      encoding: 'utf8',
+    });
+    const localRemfsData = JSON.parse(localRemfsDataText);
+    return localRemfsData;
+  }
+  catch (e) {
+    //console.log("no remfs in", fsPath);
+  }
+}
+
+function parsePath(path) {
+  if (path.endsWith('/')) {
+    path = path.slice(0, path.length - 1);
+  }
+
+  if (path === '' || path === '/') {
+    return [];
+  }
+
+  return path.slice(1).split('/');
 }
 
 async function serveItem(req, res, rootPath, reqPath) {
@@ -176,17 +238,8 @@ async function buildRemfsDir(fsPath) {
     children: {},
   };
 
-  const localRemfsPath = path.join(fsPath, 'remfs.json');
-  try {
-    const localRemfsDataText = await fs.promises.readFile(localRemfsPath, {
-      encoding: 'utf8',
-    });
-    const localRemfsData = JSON.parse(localRemfsDataText);
-    Object.assign(remfs, localRemfsData);
-  }
-  catch (e) {
-    //console.log(e);
-  }
+  const localRemfs = await readLocalRemfs(fsPath);
+  Object.assign(remfs, localRemfs);
 
   let totalSize = 0;
 
@@ -206,11 +259,11 @@ async function buildRemfsDir(fsPath) {
     totalSize += stats.size;
 
     if (stats.isDirectory()) {
-      //remfs.children[filename] = {
-      //  type: 'dir',
-      //  size: stats.size,
-      //};
-      remfs.children[filename] = await buildRemfsDir(childFsPath);
+      remfs.children[filename] = {
+        type: 'dir',
+        size: stats.size,
+      };
+      //remfs.children[filename] = await buildRemfsDir(childFsPath);
     }
     else {
       remfs.children[filename] = {
