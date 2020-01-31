@@ -2,10 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const { renderHtmlDir } = require('./render_html_dir.js');
-const { Pauth, Perms } = require('./pauth.js');
+const { PauthBuilder } = require('./pauth.js');
 
 
-function createHandler(options) {
+async function createHandler(options) {
 
   let rootPath = '/';
 
@@ -13,7 +13,7 @@ function createHandler(options) {
     rootPath = options.rootPath;
   }
 
-  const autho = new Pauth();
+  const pauth = await new PauthBuilder().build();
 
   return async function(req, res) {
     const u = url.parse(req.url); 
@@ -33,7 +33,7 @@ function createHandler(options) {
             const body = JSON.parse(data);
             console.log(body);
             if (body.method === 'authenticate') {
-              const token = await autho.authenticate(body.params.email);
+              const token = await pauth.authenticate(body.params.email);
               resolve(token);
             }
           }
@@ -48,8 +48,20 @@ function createHandler(options) {
       return;
     }
 
-    //const remfs = await getRemfs(reqPath);
-    //const perms = new Perms(remfs.perms);
+    const tokenName = 'remfs-token';
+    const token = parseToken(req, tokenName);
+
+    const perms = await pauth.getPerms(token);
+
+    console.log(token, reqPath);
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      if (perms.canRead(reqPath)) {
+        console.log("canRead");
+      }
+      else {
+        console.log("no canRead");
+      }
+    }
 
     if (reqPath.endsWith('remfs.json')) {
 
@@ -63,6 +75,14 @@ function createHandler(options) {
       serveItem(req, res, rootPath, reqPath); 
     }
   };
+}
+
+function parseToken(req, tokenName) {
+  if (req.headers[tokenName]) {
+    return req.headers[tokenName];
+  }
+
+  return null;
 }
 
 async function getRemfs(path) {
