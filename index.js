@@ -22,29 +22,29 @@ async function createHandler(options) {
 
     if (req.headers['content-type'] === 'application/json') {
 
-      const token = await new Promise((resolve, reject) => {
-        let data = '';
-        req.on('data', (chunk) => {
-          data += chunk;
-        });
-
-        req.on('end', async () => {
-          try {
-            const body = JSON.parse(data);
-            console.log(body);
-            if (body.method === 'authenticate') {
-              const token = await pauth.authenticate(body.params.email);
-              resolve(token);
-            }
-          }
-          catch (e) {
-            reject(e);
-          }
-        });
+      let data = '';
+      req.on('data', (chunk) => {
+        data += chunk;
       });
 
-      res.write(token);
-      res.end();
+      req.on('end', async () => {
+        try {
+          const body = JSON.parse(data);
+          console.log(body);
+          if (body.method === 'authenticate') {
+            const token = await pauth.authenticate(body.params.email);
+            res.write(token);
+            res.end();
+          }
+        }
+        catch (e) {
+          console.log(e);
+          res.statusCode = 500;
+          res.write("Auth error");
+          res.end();
+        }
+      });
+
       return;
     }
 
@@ -55,11 +55,11 @@ async function createHandler(options) {
 
     console.log(token, reqPath);
     if (req.method === 'GET' || req.method === 'HEAD') {
-      if (perms.canRead(reqPath)) {
-        console.log("canRead");
-      }
-      else {
-        console.log("no canRead");
+      if (!perms.canRead(reqPath)) {
+        res.statusCode = 403;
+        res.write("Unauthorized");
+        res.end();
+        return;
       }
     }
 

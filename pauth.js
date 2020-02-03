@@ -3,21 +3,40 @@ const fs = require('fs');
 
 class PauthBuilder {
   async build() {
-    const permsText = await fs.promises.readFile('pauth_perms.json')
+
+    let permsText;
+    try {
+      permsText = await fs.promises.readFile('pauth_perms.json')
+    }
+    catch (e) {
+      await fs.promises.writeFile('pauth_perms.json', '{}');
+    }
     const allPerms = JSON.parse(permsText);
-    return new Pauth(allPerms);
+
+    let tokensText;
+    try {
+      tokensText = await fs.promises.readFile('pauth_tokens.json');
+    }
+    catch (e) {
+      await fs.promises.writeFile('pauth_tokens.json', '{}');
+    }
+    const tokens = JSON.parse(tokensText);
+
+    return new Pauth(allPerms, tokens);
   }
 }
 
 class Pauth {
 
-  constructor(allPerms) {
+  constructor(allPerms, tokens) {
     this._allPerms = allPerms;
+    this._tokens = tokens;
   }
 
   async authenticate(email) {
     const emauthUrl = `https://emauth.io/verify?email=${email}`;
-    const token = await new Promise((resolve, reject) => {
+
+    return new Promise((resolve, reject) => {
       const req = https.get(emauthUrl, (res) => {
 
         let data = '';
@@ -26,7 +45,15 @@ class Pauth {
         });
 
         res.on('end', () => {
-          resolve(data);
+          if (res.statusCode === 200) {
+            const token = createToken();
+            this._tokens[token] = email;
+            this._persistTokens();
+            resolve(token);
+          }
+          else {
+            reject(data);
+          }
         });
 
         res.on('error', (e) => {
@@ -34,26 +61,34 @@ class Pauth {
         });
       });
     });
-
-    return token;
   }
 
   async getPerms(token) {
-    return new Perms(this._allPerms, token);
+    return new Perms(this._allPerms, this._tokens, token);
   }
 
   async persistPerms() {
     const permsJson = JSON.stringify(this._allPerms, null, 2);
     await fs.promises.writeFile('pauth_perms.json', permsJson);
   }
+
+  async _persistTokens() {
+    const tokensJson = JSON.stringify(this._tokens, null, 2);
+    await fs.promises.writeFile('pauth_tokens.json', tokensJson);
+  }
 }
 
 class Perms {
-  constructor(allPerms, token) {
+  constructor(allPerms, tokens, token) {
     this._allPerms = allPerms;
     this._token = token;
-    // TODO: extract from JWT
-    this._ident = token;
+
+    if (tokens[token]) {
+      this._ident = tokens[token];
+    }
+    else {
+      this._ident = 'public';
+    }
   }
 
   canRead(path) {
@@ -96,6 +131,9 @@ class Perms {
       managers: {},
       owners: {},
     };
+
+    Object.assign(perms, this._allPerms['/']);
+
     let curPath = '';
     for (const part of pathParts) {
       curPath += '/' + part;
@@ -122,6 +160,27 @@ function parsePath(path) {
   }
 
   return path.slice(1).split('/');
+}
+
+function createToken() {
+  const possible = "0123456789abcdefghijkmnpqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+  function genCluster() {
+    let cluster = "";
+    for (let i = 0; i < 32; i++) {
+      const randIndex = Math.floor(Math.random() * possible.length);
+      cluster += possible[randIndex];
+    }
+    return cluster;
+  }
+
+  let id = "";
+  id += genCluster();
+  //id += '-';
+  //id += genCluster();
+  //id += '-';
+  //id += genCluster();
+  return id;
 }
 
 module.exports = {
