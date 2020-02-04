@@ -63,11 +63,24 @@ class Pauth {
     });
   }
 
+  async addReader(token, path, ident) {
+    if (!this._allPerms[path]) {
+      this._allPerms[path] = {};
+    }
+
+    if (!this._allPerms[path].readers) {
+      this._allPerms[path].readers = {};
+    }
+
+    this._allPerms[path].readers[ident] = true;
+    await this._persistPerms();
+  }
+
   async getPerms(token) {
     return new Perms(this._allPerms, this._tokens, token);
   }
 
-  async persistPerms() {
+  async _persistPerms() {
     const permsJson = JSON.stringify(this._allPerms, null, 2);
     await fs.promises.writeFile('pauth_perms.json', permsJson);
   }

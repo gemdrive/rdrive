@@ -19,6 +19,8 @@ async function createHandler(options) {
     const u = url.parse(req.url); 
     const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
 
+    const tokenName = 'remfs-token';
+    const token = parseToken(req, tokenName);
 
     if (req.headers['content-type'] === 'application/json') {
 
@@ -36,6 +38,11 @@ async function createHandler(options) {
             res.write(token);
             res.end();
           }
+          else if (body.method === 'addReader') {
+            await pauth.addReader(token, reqPath, body.params.email);
+            //res.write(token);
+            res.end();
+          }
         }
         catch (e) {
           console.log(e);
@@ -47,9 +54,6 @@ async function createHandler(options) {
 
       return;
     }
-
-    const tokenName = 'remfs-token';
-    const token = parseToken(req, tokenName);
 
     const perms = await pauth.getPerms(token);
 
