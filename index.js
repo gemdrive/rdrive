@@ -40,14 +40,13 @@ async function createHandler(options) {
           }
           else if (body.method === 'addReader') {
             await pauth.addReader(token, reqPath, body.params.email);
-            //res.write(token);
+            res.write(`Added reader ${body.params.email} to ${reqPath}`);
             res.end();
           }
         }
         catch (e) {
-          console.log(e);
-          res.statusCode = 500;
-          res.write("Auth error");
+          res.statusCode = 400;
+          res.write(e.toString());
           res.end();
         }
       });

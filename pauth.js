@@ -64,6 +64,10 @@ class Pauth {
   }
 
   async addReader(token, path, ident) {
+    if (!this.canManage(token, path)) {
+      throw new Error(`User does not have Manager permissions for path '${path}'`);
+    }
+
     if (!this._allPerms[path]) {
       this._allPerms[path] = {};
     }
@@ -77,64 +81,44 @@ class Pauth {
   }
 
   async getPerms(token) {
-    return new Perms(this._allPerms, this._tokens, token);
+    return new Perms(this, token);
   }
 
-  async _persistPerms() {
-    const permsJson = JSON.stringify(this._allPerms, null, 2);
-    await fs.promises.writeFile('pauth_perms.json', permsJson);
-  }
-
-  async _persistTokens() {
-    const tokensJson = JSON.stringify(this._tokens, null, 2);
-    await fs.promises.writeFile('pauth_tokens.json', tokensJson);
-  }
-}
-
-class Perms {
-  constructor(allPerms, tokens, token) {
-    this._allPerms = allPerms;
-    this._token = token;
-
-    if (tokens[token]) {
-      this._ident = tokens[token];
-    }
-    else {
-      this._ident = 'public';
-    }
-  }
-
-  canRead(path) {
+  canRead(token, path) {
+    const ident = this._getIdent(token);
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
     
     return perms.readers.public === true ||
-      perms.readers[this._ident] === true ||
-      this.canWrite(path);
+      perms.readers[ident] === true ||
+      this.canWrite(token, path);
   }
 
-  canWrite(path) {
+  canWrite(token, path) {
+    const ident = this._getIdent(token);
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
 
     return perms.writers.public === true ||
-      perms.writers[this._ident] === true ||
-      this.canManage(path);
+      perms.writers[ident] === true ||
+      this.canManage(token, path);
   }
 
-  canManage(path) {
+  canManage(token, path) {
+    const ident = this._getIdent(token);
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
 
-    return perms.managers[this._ident] === true ||
-      this.isOwner(path);
+    return perms.managers[ident] === true ||
+      this.isOwner(token, path);
   }
 
-  isOwner(path) {
+  isOwner(token, path) {
+    const ident = this._getIdent(token);
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
 
-    return perms.owners[this._ident] === true;
+    return perms.owners[ident] === true;
   }
 
   _getPerms(pathParts) {
@@ -156,6 +140,36 @@ class Perms {
     }
 
     return perms;
+  }
+
+  async _persistPerms() {
+    const permsJson = JSON.stringify(this._allPerms, null, 2);
+    await fs.promises.writeFile('pauth_perms.json', permsJson);
+  }
+
+  async _persistTokens() {
+    const tokensJson = JSON.stringify(this._tokens, null, 2);
+    await fs.promises.writeFile('pauth_tokens.json', tokensJson);
+  }
+
+  _getIdent(token) {
+    if (this._tokens[token]) {
+      return this._tokens[token];
+    }
+    else {
+      return 'public';
+    }
+  }
+}
+
+class Perms {
+  constructor(pauth, token) {
+    this._pauth = pauth;
+    this._token = token;
+  }
+
+  canRead(path) {
+    return this._pauth.canRead(this._token, path);
   }
 }
 
