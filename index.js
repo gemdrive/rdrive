@@ -33,29 +33,31 @@ async function createHandler(options) {
         try {
           const body = JSON.parse(data);
           console.log(body);
+
+          const trimmedPath = reqPath.endsWith('/') ? reqPath.slice(0, reqPath.length - 1) : reqPath;
           if (body.method === 'authenticate') {
             const token = await pauth.authenticate(body.params.email);
             res.write(token);
             res.end();
           }
           else if (body.method === 'addReader') {
-            await pauth.addReader(token, reqPath, body.params.email);
-            res.write(`Added reader ${body.params.email} to ${reqPath}`);
+            await pauth.addReader(token, trimmedPath, body.params.email);
+            res.write(`Added reader ${body.params.email} to ${trimmedPath}`);
             res.end();
           }
           else if (body.method === 'addWriter') {
-            await pauth.addWriter(token, reqPath, body.params.email);
-            res.write(`Added writer ${body.params.email} to ${reqPath}`);
+            await pauth.addWriter(token, trimmedPath, body.params.email);
+            res.write(`Added writer ${body.params.email} to ${trimmedPath}`);
             res.end();
           }
           else if (body.method === 'addManager') {
-            await pauth.addManager(token, reqPath, body.params.email);
-            res.write(`Added manager ${body.params.email} to ${reqPath}`);
+            await pauth.addManager(token, trimmedPath, body.params.email);
+            res.write(`Added manager ${body.params.email} to ${trimmedPath}`);
             res.end();
           }
           else if (body.method === 'addOwner') {
-            await pauth.addOwner(token, reqPath, body.params.email);
-            res.write(`Added owner ${body.params.email} to ${reqPath}`);
+            await pauth.addOwner(token, trimmedPath, body.params.email);
+            res.write(`Added owner ${body.params.email} to ${trimmedPath}`);
             res.end();
           }
           else {
