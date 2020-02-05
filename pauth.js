@@ -9,7 +9,7 @@ class PauthBuilder {
       permsText = await fs.promises.readFile('pauth_perms.json')
     }
     catch (e) {
-      await fs.promises.writeFile('pauth_perms.json', '{}');
+      await fs.promises.writeFile('pauth_perms.json', '{"/":{"readers":{"public":true}}}');
     }
     const allPerms = JSON.parse(permsText);
 
