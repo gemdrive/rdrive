@@ -43,6 +43,16 @@ async function createHandler(options) {
             res.write(`Added reader ${body.params.email} to ${reqPath}`);
             res.end();
           }
+          else if (body.method === 'addWriter') {
+            await pauth.addWriter(token, reqPath, body.params.email);
+            res.write(`Added writer ${body.params.email} to ${reqPath}`);
+            res.end();
+          }
+          else {
+            res.statusCode = 400;
+            res.write(`Invalid method '${body.method}'`);
+            res.end();
+          }
         }
         catch (e) {
           res.statusCode = 400;
@@ -56,7 +66,6 @@ async function createHandler(options) {
 
     const perms = await pauth.getPerms(token);
 
-    console.log(token, reqPath);
     if (req.method === 'GET' || req.method === 'HEAD') {
       if (!perms.canRead(reqPath)) {
         res.statusCode = 403;
@@ -64,18 +73,59 @@ async function createHandler(options) {
         res.end();
         return;
       }
+
+      if (reqPath.endsWith('remfs.json')) {
+
+        const fsPath = path.join('./', path.dirname(reqPath));
+
+        const remfs = await buildRemfsDir(fsPath);
+        res.write(JSON.stringify(remfs, null, 2));
+        res.end();
+      }
+      else {
+        serveItem(req, res, rootPath, reqPath); 
+      }
     }
+    else if (req.method === 'PUT') {
+      if (!perms.canWrite(reqPath)) {
+        res.statusCode = 403;
+        res.write("Unauthorized");
+        res.end();
+        return;
+      }
 
-    if (reqPath.endsWith('remfs.json')) {
+      const fsPath = '.' + reqPath;
+      console.log(fsPath);
 
-      const fsPath = path.join('./', path.dirname(reqPath));
+      const pathParts = parsePath(reqPath);
 
-      const remfs = await buildRemfsDir(fsPath);
-      res.write(JSON.stringify(remfs, null, 2));
+      let curDir = '.';
+      for (const pathPart of pathParts.slice(0, pathParts.length - 1)) {
+        curDir += '/' + pathPart;
+
+        try {
+          await fs.promises.stat(curDir);
+        }
+        catch (e) {
+          res.statusCode = 400;
+          res.write(e.toString());
+          res.end();
+          return;
+        }
+      }
+
+      const stream = fs.createWriteStream(fsPath);
+
+      //req.on('data', (d) => {
+      //  stream.write(d);
+      //});
+      //req.on('end', () => {
+      //  stream.end();
+      //});
+
+      req.pipe(stream);
+
       res.end();
-    }
-    else {
-      serveItem(req, res, rootPath, reqPath); 
     }
   };
 }

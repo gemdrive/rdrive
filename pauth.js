@@ -80,6 +80,23 @@ class Pauth {
     await this._persistPerms();
   }
 
+  async addWriter(token, path, ident) {
+    if (!this.canManage(token, path)) {
+      throw new Error(`User does not have Manager permissions for path '${path}'`);
+    }
+
+    if (!this._allPerms[path]) {
+      this._allPerms[path] = {};
+    }
+
+    if (!this._allPerms[path].writers) {
+      this._allPerms[path].writers = {};
+    }
+
+    this._allPerms[path].writers[ident] = true;
+    await this._persistPerms();
+  }
+
   async getPerms(token) {
     return new Perms(this, token);
   }
@@ -170,6 +187,10 @@ class Perms {
 
   canRead(path) {
     return this._pauth.canRead(this._token, path);
+  }
+
+  canWrite(path) {
+    return this._pauth.canWrite(this._token, path);
   }
 }
 
