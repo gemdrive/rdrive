@@ -182,7 +182,10 @@ class Pauth {
       owners: {},
     };
 
-    Object.assign(perms, this._allPerms['/']);
+    Object.assign(perms.readers, this._allPerms['/'].readers);
+    Object.assign(perms.writers, this._allPerms['/'].writers);
+    Object.assign(perms.managers, this._allPerms['/'].managers);
+    Object.assign(perms.owners, this._allPerms['/'].owners);
 
     let curPath = '';
     for (const part of pathParts) {
