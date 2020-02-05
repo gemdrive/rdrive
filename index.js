@@ -48,6 +48,16 @@ async function createHandler(options) {
             res.write(`Added writer ${body.params.email} to ${reqPath}`);
             res.end();
           }
+          else if (body.method === 'addManager') {
+            await pauth.addManager(token, reqPath, body.params.email);
+            res.write(`Added manager ${body.params.email} to ${reqPath}`);
+            res.end();
+          }
+          else if (body.method === 'addOwner') {
+            await pauth.addOwner(token, reqPath, body.params.email);
+            res.write(`Added owner ${body.params.email} to ${reqPath}`);
+            res.end();
+          }
           else {
             res.statusCode = 400;
             res.write(`Invalid method '${body.method}'`);

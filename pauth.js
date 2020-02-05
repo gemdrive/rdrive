@@ -97,6 +97,40 @@ class Pauth {
     await this._persistPerms();
   }
 
+  async addManager(token, path, ident) {
+    if (!this.isOwner(token, path)) {
+      throw new Error(`User does not have Owner permissions for path '${path}'`);
+    }
+
+    if (!this._allPerms[path]) {
+      this._allPerms[path] = {};
+    }
+
+    if (!this._allPerms[path].managers) {
+      this._allPerms[path].managers = {};
+    }
+
+    this._allPerms[path].managers[ident] = true;
+    await this._persistPerms();
+  }
+
+  async addOwner(token, path, ident) {
+    if (!this.isOwner(token, path)) {
+      throw new Error(`User does not have Owner permissions for path '${path}'`);
+    }
+
+    if (!this._allPerms[path]) {
+      this._allPerms[path] = {};
+    }
+
+    if (!this._allPerms[path].owners) {
+      this._allPerms[path].owners = {};
+    }
+
+    this._allPerms[path].owners[ident] = true;
+    await this._persistPerms();
+  }
+
   async getPerms(token) {
     return new Perms(this, token);
   }
@@ -135,6 +169,8 @@ class Pauth {
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
 
+    console.log(perms);
+
     return perms.owners[ident] === true;
   }
 
@@ -152,7 +188,10 @@ class Pauth {
     for (const part of pathParts) {
       curPath += '/' + part;
       if (this._allPerms[curPath]) {
-        Object.assign(perms, this._allPerms[curPath]);
+        Object.assign(perms.readers, this._allPerms[curPath].readers);
+        Object.assign(perms.writers, this._allPerms[curPath].writers);
+        Object.assign(perms.managers, this._allPerms[curPath].managers);
+        Object.assign(perms.owners, this._allPerms[curPath].owners);
       }
     }
 
