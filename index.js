@@ -50,6 +50,11 @@ async function createHandler(options) {
             res.write(`Added reader ${body.params.email} to ${trimmedPath}`);
             res.end();
           }
+          else if (body.method === 'removeReader') {
+            await pauth.removeReader(token, trimmedPath, body.params.email);
+            res.write(`Removed reader ${body.params.email} from ${trimmedPath}`);
+            res.end();
+          }
           else if (body.method === 'addWriter') {
             await pauth.addWriter(token, trimmedPath, body.params.email);
             res.write(`Added writer ${body.params.email} to ${trimmedPath}`);

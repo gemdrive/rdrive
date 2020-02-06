@@ -64,69 +64,36 @@ class Pauth {
   }
 
   async addReader(token, path, ident) {
-    if (!this.canManage(token, path)) {
-      throw new Error(`User does not have Manager permissions for path '${path}'`);
-    }
-
-    if (!this._allPerms[path]) {
-      this._allPerms[path] = {};
-    }
-
-    if (!this._allPerms[path].readers) {
-      this._allPerms[path].readers = {};
-    }
-
+    this._assertManager(token, path);
+    this._ensureReaders(path);
     this._allPerms[path].readers[ident] = true;
     await this._persistPerms();
   }
 
+  async removeReader(token, path, ident) {
+    this._assertManager(token, path);
+    this._ensureReaders(path);
+    this._allPerms[path].readers[ident] = false;
+    await this._persistPerms();
+  }
+
   async addWriter(token, path, ident) {
-    if (!this.canManage(token, path)) {
-      throw new Error(`User does not have Manager permissions for path '${path}'`);
-    }
-
-    if (!this._allPerms[path]) {
-      this._allPerms[path] = {};
-    }
-
-    if (!this._allPerms[path].writers) {
-      this._allPerms[path].writers = {};
-    }
-
+    this._assertManager(token, path);
+    this._ensureWriters(path);
     this._allPerms[path].writers[ident] = true;
     await this._persistPerms();
   }
 
   async addManager(token, path, ident) {
-    if (!this.isOwner(token, path)) {
-      throw new Error(`User does not have Owner permissions for path '${path}'`);
-    }
-
-    if (!this._allPerms[path]) {
-      this._allPerms[path] = {};
-    }
-
-    if (!this._allPerms[path].managers) {
-      this._allPerms[path].managers = {};
-    }
-
+    this._assertOwner(token, path);
+    this._ensureManagers(path);
     this._allPerms[path].managers[ident] = true;
     await this._persistPerms();
   }
 
   async addOwner(token, path, ident) {
-    if (!this.isOwner(token, path)) {
-      throw new Error(`User does not have Owner permissions for path '${path}'`);
-    }
-
-    if (!this._allPerms[path]) {
-      this._allPerms[path] = {};
-    }
-
-    if (!this._allPerms[path].owners) {
-      this._allPerms[path].owners = {};
-    }
-
+    this._assertOwner(token, path);
+    this._ensureOwners(path);
     this._allPerms[path].owners[ident] = true;
     await this._persistPerms();
   }
@@ -172,6 +139,56 @@ class Pauth {
     console.log(perms);
 
     return perms.owners[ident] === true;
+  }
+
+  _assertManager(token, path) {
+    if (!this.canManage(token, path)) {
+      throw new Error(`User does not have Manager permissions for path '${path}'`);
+    }
+  }
+
+  _assertOwner(token, path) {
+    if (!this.isOwner(token, path)) {
+      throw new Error(`User does not have Owner permissions for path '${path}'`);
+    }
+  }
+
+  _ensurePath(path) {
+    if (!this._allPerms[path]) {
+      this._allPerms[path] = {};
+    }
+  }
+
+  _ensureReaders(path) {
+    this._ensurePath(path);
+
+    if (!this._allPerms[path].readers) {
+      this._allPerms[path].readers = {};
+    }
+  }
+
+  _ensureWriters(path) {
+    this._ensurePath(path);
+
+    if (!this._allPerms[path].writers) {
+      this._allPerms[path].writers = {};
+    }
+  }
+
+  _ensureManagers(path) {
+    this._ensurePath(path);
+
+    if (!this._allPerms[path].managers) {
+      this._allPerms[path].managers = {};
+    }
+  }
+
+  _ensureOwners(path) {
+    this._ensurePath(path);
+
+    if (!this._allPerms[path].owners) {
+      this._allPerms[path].owners = {};
+    }
   }
 
   _getPerms(pathParts) {
