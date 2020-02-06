@@ -202,12 +202,12 @@ class Pauth {
   }
 
   async _persistPerms() {
-    const permsJson = JSON.stringify(this._allPerms, null, 2);
+    const permsJson = JSON.stringify(this._allPerms, null, 4);
     await fs.promises.writeFile('pauth_perms.json', permsJson);
   }
 
   async _persistTokens() {
-    const tokensJson = JSON.stringify(this._tokens, null, 2);
+    const tokensJson = JSON.stringify(this._tokens, null, 4);
     await fs.promises.writeFile('pauth_tokens.json', tokensJson);
   }
 

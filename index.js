@@ -13,6 +13,11 @@ async function createHandler(options) {
     rootPath = options.rootPath;
   }
 
+  let fsRoot = '.';
+  if (options && options.dir) {
+    fsRoot = options.dir;
+  }
+
   const pauth = await new PauthBuilder().build();
 
   return async function(req, res) {
@@ -88,14 +93,14 @@ async function createHandler(options) {
 
       if (reqPath.endsWith('remfs.json')) {
 
-        const fsPath = path.join('./', path.dirname(reqPath));
+        const fsPath = path.join(fsRoot, path.dirname(reqPath));
 
         const remfs = await buildRemfsDir(fsPath);
         res.write(JSON.stringify(remfs, null, 2));
         res.end();
       }
       else {
-        serveItem(req, res, rootPath, reqPath); 
+        serveItem(req, res, fsRoot, rootPath, reqPath); 
       }
     }
     else if (req.method === 'PUT') {
@@ -106,12 +111,12 @@ async function createHandler(options) {
         return;
       }
 
-      const fsPath = '.' + reqPath;
+      const fsPath = fsRoot + reqPath;
       console.log(fsPath);
 
       const pathParts = parsePath(reqPath);
 
-      let curDir = '.';
+      let curDir = fsRoot;
       for (const pathPart of pathParts.slice(0, pathParts.length - 1)) {
         curDir += '/' + pathPart;
 
@@ -128,13 +133,6 @@ async function createHandler(options) {
 
       const stream = fs.createWriteStream(fsPath);
 
-      //req.on('data', (d) => {
-      //  stream.write(d);
-      //});
-      //req.on('end', () => {
-      //  stream.end();
-      //});
-
       req.pipe(stream);
 
       res.end();
@@ -150,23 +148,23 @@ function parseToken(req, tokenName) {
   return null;
 }
 
-async function getRemfs(path) {
-  const parts = parsePath(path);
-
-  const remfs = {};
-  const localRemfs = await readLocalRemfs('./');
-  Object.assign(remfs, localRemfs);
-
-  let curPath = '.';
-  for (const part of parts) {
-    curPath += '/' + part;
-    console.log(curPath);
-    const localRemfs = await readLocalRemfs(curPath);
-    Object.assign(remfs, localRemfs);
-  }
-
-  return remfs;
-}
+//async function getRemfs(path) {
+//  const parts = parsePath(path);
+//
+//  const remfs = {};
+//  const localRemfs = await readLocalRemfs('./');
+//  Object.assign(remfs, localRemfs);
+//
+//  let curPath = '.';
+//  for (const part of parts) {
+//    curPath += '/' + part;
+//    console.log(curPath);
+//    const localRemfs = await readLocalRemfs(curPath);
+//    Object.assign(remfs, localRemfs);
+//  }
+//
+//  return remfs;
+//}
 
 async function readLocalRemfs(fsPath) {
   const localRemfsPath = path.join(fsPath, 'remfs.json');
@@ -194,14 +192,14 @@ function parsePath(path) {
   return path.slice(1).split('/');
 }
 
-async function serveItem(req, res, rootPath, reqPath) {
+async function serveItem(req, res, fsRoot, rootPath, reqPath) {
 
   res.setHeader('Cache-Control', 'max-age=3600');
   res.on('error', (e) => {
     console.error(e);
   });
 
-  const fsPath = path.join('./', reqPath);
+  const fsPath = path.join(fsRoot, reqPath);
 
   let stats
   try {
