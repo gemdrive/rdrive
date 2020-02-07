@@ -27,6 +27,14 @@ async function createHandler(options) {
     const tokenName = 'remfs-token';
     const token = parseToken(req, tokenName);
 
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+
+    if (req.method === 'OPTIONS') {
+      res.end();
+      return;
+    }
+
     if (req.headers['content-type'] === 'application/json') {
 
       let data = '';
