@@ -24,9 +24,6 @@ async function createHandler(options) {
     const u = url.parse(req.url); 
     const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
 
-    const tokenName = 'remfs-token';
-    const token = parseToken(req, tokenName);
-
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
 
@@ -94,9 +91,19 @@ async function createHandler(options) {
       return;
     }
 
-    const perms = await pauth.getPerms(token);
 
-    if (req.method === 'GET' || req.method === 'HEAD') {
+    if (req.method === 'GET' || req.method === 'HEAD' ||
+        (req.method === 'POST' && req.headers['content-type'] === 'text/plain')) {
+
+      if (req.method === 'POST') {
+        req.body = await parseBody(req);
+      }
+
+      const tokenName = 'remfs-token';
+      const token = parseToken(req, tokenName);
+
+      const perms = await pauth.getPerms(token);
+
       if (!perms.canRead(reqPath)) {
         res.statusCode = 403;
         res.write("Unauthorized");
@@ -156,6 +163,13 @@ async function createHandler(options) {
 function parseToken(req, tokenName) {
   if (req.headers[tokenName]) {
     return req.headers[tokenName];
+  }
+
+  if (req.body){
+    const body = JSON.parse(req.body);
+    if (body.params && body.params[tokenName]) {
+      return body.params[tokenName];
+    }
   }
 
   return null;
@@ -393,6 +407,23 @@ function getMime(ext) {
     case '.svg':
       return 'image/svg+xml';
   }
+}
+
+async function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => {
+      data += chunk;
+    });
+
+    req.on('end', async () => {
+      resolve(data);
+    });
+
+    req.on('error', async (err) => {
+      reject(err);
+    });
+  });
 }
 
 
