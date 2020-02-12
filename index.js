@@ -26,6 +26,7 @@ async function createHandler(options) {
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Access-Control-Allow-Methods', '*');
 
     if (req.method === 'OPTIONS') {
       res.end();
@@ -124,6 +125,12 @@ async function createHandler(options) {
       }
     }
     else if (req.method === 'PUT') {
+
+      const tokenName = 'remfs-token';
+      const token = parseToken(req, tokenName);
+
+      const perms = await pauth.getPerms(token);
+
       if (!perms.canWrite(reqPath)) {
         res.statusCode = 403;
         res.write("Unauthorized");
@@ -132,8 +139,6 @@ async function createHandler(options) {
       }
 
       const fsPath = fsRoot + reqPath;
-      console.log(fsPath);
-
       const pathParts = parsePath(reqPath);
 
       let curDir = fsRoot;
@@ -155,7 +160,14 @@ async function createHandler(options) {
 
       req.pipe(stream);
 
-      res.end();
+      req.on('end', async () => {
+        const remfsPath = path.dirname(fsPath);
+
+        const remfs = await buildRemfsDir(remfsPath);
+        res.write(JSON.stringify(remfs, null, 2));
+
+        res.end();
+      });
     }
   };
 }
@@ -216,7 +228,7 @@ function parsePath(path) {
     return [];
   }
 
-  return path.slice(1).split('/');
+  return path.split('/');
 }
 
 async function serveItem(req, res, fsRoot, rootPath, reqPath) {

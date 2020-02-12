@@ -4,10 +4,25 @@ const process = require('process');
 const http = require('http');
 const { createHandler } = require('./index.js');
 
-const port = process.argv[2];
+const args = process.argv
+  .slice(2)
+  .map(arg => arg.split('='))
+  .reduce((args, [value, key]) => {
+      args[value] = key;
+      return args;
+  }, {});
+
+//if (!args['--dir']) {
+//  console.log("Usage: remfs-server [--port=PORT] [--dir=DIR]");
+//  process.exit(1);
+//}
+//
+
+const port = args['--port'] ? args['--port'] : 9001;
+const dir = args['--dir'] ? args['--dir'] : './';
 
 (async () => {
-  const remfsHandler = await createHandler();
+  const remfsHandler = await createHandler({ dir });
   const httpServer = http.createServer(remfsHandler);
   httpServer.listen(port);
 })();

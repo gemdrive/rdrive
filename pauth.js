@@ -117,6 +117,8 @@ class Pauth {
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
 
+    console.log(ident, perms);
+
     return perms.writers.public === true ||
       perms.writers[ident] === true ||
       this.canManage(token, path);
