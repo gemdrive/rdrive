@@ -162,9 +162,10 @@ async function createHandler(options) {
 
       req.on('end', async () => {
         const remfsPath = path.dirname(fsPath);
+        const filename = path.basename(fsPath);
 
         const remfs = await buildRemfsDir(remfsPath);
-        res.write(JSON.stringify(remfs, null, 2));
+        res.write(JSON.stringify(remfs.children[filename], null, 2));
 
         res.end();
       });
