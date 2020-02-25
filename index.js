@@ -3,7 +3,8 @@ const path = require('path');
 const url = require('url');
 const { renderHtmlDir } = require('./render_html_dir.js');
 const { PauthBuilder } = require('./pauth.js');
-const { parseToken, parsePath, encodePath } = require('./utils.js');
+const { parseToken, parsePath, encodePath, buildRemfsDir, getMime } = require('./utils.js');
+const { handleUpload } = require('./upload.js');
 const { handleDelete } = require('./delete.js');
 
 
@@ -127,89 +128,12 @@ async function createHandler(options) {
       }
     }
     else if (req.method === 'PUT') {
-
-      const tokenName = 'remfs-token';
-      const token = parseToken(req, tokenName);
-
-      const perms = await pauth.getPerms(token);
-
-      if (!perms.canWrite(reqPath)) {
-        res.statusCode = 403;
-        res.write("Unauthorized");
-        res.end();
-        return;
-      }
-
-      const fsPath = fsRoot + reqPath;
-      const pathParts = parsePath(reqPath);
-
-      // TODO: Might not need to traverse here. Maybe just check if the parent
-      // path exists.
-      let curDir = fsRoot;
-      for (const pathPart of pathParts.slice(0, pathParts.length - 1)) {
-        curDir += '/' + pathPart;
-
-        try {
-          await fs.promises.stat(curDir);
-        }
-        catch (e) {
-          res.statusCode = 400;
-          res.write(e.toString());
-          res.end();
-          return;
-        }
-      }
-
-      const stream = fs.createWriteStream(fsPath);
-
-      req.pipe(stream);
-
-      req.on('end', async () => {
-        const remfsPath = path.dirname(fsPath);
-        const filename = path.basename(fsPath);
-
-        const remfs = await buildRemfsDir(remfsPath);
-        res.write(JSON.stringify(remfs.children[filename], null, 2));
-
-        res.end();
-      });
+      await handleUpload(req, res, fsRoot, reqPath, pauth);
     }
     else if (req.method === 'DELETE') {
       await handleDelete(req, res, fsRoot, reqPath, pauth);
     }
   };
-}
-
-//async function getRemfs(path) {
-//  const parts = parsePath(path);
-//
-//  const remfs = {};
-//  const localRemfs = await readLocalRemfs('./');
-//  Object.assign(remfs, localRemfs);
-//
-//  let curPath = '.';
-//  for (const part of parts) {
-//    curPath += '/' + part;
-//    console.log(curPath);
-//    const localRemfs = await readLocalRemfs(curPath);
-//    Object.assign(remfs, localRemfs);
-//  }
-//
-//  return remfs;
-//}
-
-async function readLocalRemfs(fsPath) {
-  const localRemfsPath = path.join(fsPath, 'remfs.json');
-  try {
-    const localRemfsDataText = await fs.promises.readFile(localRemfsPath, {
-      encoding: 'utf8',
-    });
-    const localRemfsData = JSON.parse(localRemfsDataText);
-    return localRemfsData;
-  }
-  catch (e) {
-    //console.log("no remfs in", fsPath);
-  }
 }
 
 async function serveItem(req, res, fsRoot, rootPath, reqPath) {
@@ -323,84 +247,6 @@ async function serveItem(req, res, fsRoot, rootPath, reqPath) {
 
 
 
-async function buildRemfsDir(fsPath) {
-
-  let filenames;
-  try {
-    filenames = await fs.promises.readdir(fsPath);
-  }
-  catch (e) {
-    res.statusCode = 404;
-    res.write("Not Found");
-    res.end();
-    return;
-  }
-
-  const remfs = {
-    type: 'dir',
-    children: {},
-  };
-
-  const localRemfs = await readLocalRemfs(fsPath);
-  Object.assign(remfs, localRemfs);
-
-  let totalSize = 0;
-
-  for (const filename of filenames) {
-    const childFsPath = path.join(fsPath, filename);
-
-    let stats;
-    try {
-      stats = await fs.promises.stat(childFsPath);
-    }
-    catch (e) {
-      console.error("This one shouldn't happen");
-      console.error(e);
-      continue;
-    }
-
-    totalSize += stats.size;
-
-    if (stats.isDirectory()) {
-      remfs.children[filename] = {
-        type: 'dir',
-        size: stats.size,
-      };
-      //remfs.children[filename] = await buildRemfsDir(childFsPath);
-    }
-    else {
-      remfs.children[filename] = {
-        type: 'file',
-        size: stats.size,
-      };
-    }
-  }
-
-  remfs.size = totalSize;
-
-  return remfs;
-}
-
-
-function getMime(ext) {
-  switch (ext) {
-    case '.js':
-      return 'application/javascript';
-    case '.json':
-      return 'application/json';
-    case '.html':
-      return 'text/html';
-    case '.css':
-      return 'text/css';
-    case '.jpeg':
-    case '.jpg':
-    case '.JPEG':
-    case '.JPG':
-      return 'image/jpeg';
-    case '.svg':
-      return 'image/svg+xml';
-  }
-}
 
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
