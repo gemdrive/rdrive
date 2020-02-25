@@ -3,6 +3,8 @@ const path = require('path');
 const url = require('url');
 const { renderHtmlDir } = require('./render_html_dir.js');
 const { PauthBuilder } = require('./pauth.js');
+const { parseToken, parsePath, encodePath } = require('./utils.js');
+const { handleDelete } = require('./delete.js');
 
 
 async function createHandler(options) {
@@ -173,77 +175,9 @@ async function createHandler(options) {
       });
     }
     else if (req.method === 'DELETE') {
-
-      const tokenName = 'remfs-token';
-      const token = parseToken(req, tokenName);
-
-      const perms = await pauth.getPerms(token);
-
-      const pathParts = parsePath(reqPath);
-      const parentDirParts = pathParts.slice(0, pathParts.length - 1);
-      const parentDir = encodePath(parentDirParts);
-
-      if (!perms.canWrite(parentDir)) {
-        res.statusCode = 403;
-        res.write("Unauthorized");
-        res.end();
-        return;
-      }
-
-      const fsPath = path.join(fsRoot, reqPath);
-
-      let stats;
-      try {
-        stats = await fs.promises.stat(fsPath);
-      }
-      catch (e) {
-        res.statusCode = 400;
-        res.write(`Error deleting '${reqPath}' (not found)`);
-        res.end();
-        return;
-      }
-
-      if (stats.isFile()) {
-        try {
-          await fs.promises.unlink(fsPath);
-        }
-        catch (e) {
-          res.statusCode = 400;
-          res.write(`Error deleting '${reqPath}'`);
-          res.end();
-          return;
-        }
-      }
-      else {
-        try {
-          await fs.promises.rmdir(fsPath, { recursive: true });
-        }
-        catch (e) {
-          res.statusCode = 400;
-          res.write(`Error deleting '${reqPath}'`);
-          res.end();
-          return;
-        }
-      }
-
-      res.end();
+      await handleDelete(req, res, fsRoot, reqPath, pauth);
     }
   };
-}
-
-function parseToken(req, tokenName) {
-  if (req.headers[tokenName]) {
-    return req.headers[tokenName];
-  }
-
-  if (req.body){
-    const body = JSON.parse(req.body);
-    if (body.params && body.params[tokenName]) {
-      return body.params[tokenName];
-    }
-  }
-
-  return null;
 }
 
 //async function getRemfs(path) {
@@ -276,23 +210,6 @@ async function readLocalRemfs(fsPath) {
   catch (e) {
     //console.log("no remfs in", fsPath);
   }
-}
-
-function parsePath(path) {
-  if (path.endsWith('/')) {
-    path = path.slice(0, path.length - 1);
-  }
-
-  if (path === '' || path === '/') {
-    return [];
-  }
-
-  return path.split('/');
-}
-
-
-function encodePath(parts) {
-  return '/' + parts.join('/');
 }
 
 async function serveItem(req, res, fsRoot, rootPath, reqPath) {
