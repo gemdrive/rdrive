@@ -141,6 +141,8 @@ async function createHandler(options) {
       const fsPath = fsRoot + reqPath;
       const pathParts = parsePath(reqPath);
 
+      // TODO: Might not need to traverse here. Maybe just check if the parent
+      // path exists.
       let curDir = fsRoot;
       for (const pathPart of pathParts.slice(0, pathParts.length - 1)) {
         curDir += '/' + pathPart;
@@ -169,6 +171,62 @@ async function createHandler(options) {
 
         res.end();
       });
+    }
+    else if (req.method === 'DELETE') {
+
+      const tokenName = 'remfs-token';
+      const token = parseToken(req, tokenName);
+
+      const perms = await pauth.getPerms(token);
+
+      const pathParts = parsePath(reqPath);
+      const parentDirParts = pathParts.slice(0, pathParts.length - 1);
+      const parentDir = encodePath(parentDirParts);
+
+      if (!perms.canWrite(parentDir)) {
+        res.statusCode = 403;
+        res.write("Unauthorized");
+        res.end();
+        return;
+      }
+
+      const fsPath = path.join(fsRoot, reqPath);
+
+      let stats;
+      try {
+        stats = await fs.promises.stat(fsPath);
+      }
+      catch (e) {
+        res.statusCode = 400;
+        res.write(`Error deleting '${reqPath}' (not found)`);
+        res.end();
+        return;
+      }
+
+      if (stats.isFile()) {
+        try {
+          await fs.promises.unlink(fsPath);
+        }
+        catch (e) {
+          res.statusCode = 400;
+          res.write(`Error deleting '${reqPath}'`);
+          res.end();
+          return;
+        }
+      }
+      else {
+        try {
+          await fs.promises.rmdir(fsPath, { recursive: true });
+        }
+        catch (e) {
+          res.statusCode = 400;
+          res.write(`Error deleting '${reqPath}'`);
+          res.end();
+          return;
+        }
+      }
+
+      res.end();
     }
   };
 }
@@ -230,6 +288,11 @@ function parsePath(path) {
   }
 
   return path.split('/');
+}
+
+
+function encodePath(parts) {
+  return '/' + parts.join('/');
 }
 
 async function serveItem(req, res, fsRoot, rootPath, reqPath) {
