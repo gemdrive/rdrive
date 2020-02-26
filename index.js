@@ -6,6 +6,7 @@ const { PauthBuilder } = require('./pauth.js');
 const { parseToken, parsePath, encodePath, buildRemfsDir, getMime } = require('./utils.js');
 const { handleUpload } = require('./upload.js');
 const { handleDelete } = require('./delete.js');
+const { handleConcat } = require('./concat.js');
 
 
 async function createHandler(options) {
@@ -78,6 +79,9 @@ async function createHandler(options) {
             await pauth.addOwner(token, trimmedPath, body.params.email);
             res.write(`Added owner ${body.params.email} to ${trimmedPath}`);
             res.end();
+          }
+          else if (body.method === 'concat') {
+            await handleConcat(req, res, body.params, fsRoot, reqPath, pauth);
           }
           else {
             res.statusCode = 400;
