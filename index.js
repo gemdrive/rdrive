@@ -13,7 +13,7 @@ async function createHandler(options) {
 
   let rootPath = '/';
 
-  if (options && options.rootPath) {
+  if (options && options.rootPath !== undefined) {
     rootPath = options.rootPath;
   }
 

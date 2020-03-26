@@ -20,9 +20,10 @@ const args = process.argv
 
 const port = args['--port'] ? args['--port'] : 9001;
 const dir = args['--dir'] ? args['--dir'] : './';
+const rootPath = args['--root-path'] ? args['--root-path'] : '';
 
 (async () => {
-  const remfsHandler = await createHandler({ dir });
+  const remfsHandler = await createHandler({ rootPath, dir });
   const httpServer = http.createServer(remfsHandler);
   httpServer.listen(port);
 })();
