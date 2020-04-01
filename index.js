@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const querystring = require('querystring');
 const { renderHtmlDir } = require('./render_html_dir.js');
 const { PauthBuilder } = require('./pauth.js');
 const { parseToken, parsePath, encodePath, buildRemfsDir, getMime } = require('./utils.js');
@@ -28,12 +29,30 @@ async function createHandler(options) {
     const u = url.parse(req.url); 
     const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
 
+    const params = querystring.parse(u.query);
+
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     res.setHeader('Access-Control-Allow-Methods', '*');
 
     if (req.method === 'OPTIONS') {
       res.end();
+      return;
+    }
+
+    if (params.method !== undefined) {
+      if (params.method === 'verify') {
+        const success = pauth.verify(params.key);
+        if (success) {
+          res.write("Verification succeeded. You can close this tab and return to your previous session.");
+        }
+        else {
+          res.write("Verification failed. It may have expired.");
+        }
+        res.end();
+      }
+
+      // TODO: maybe not return here?
       return;
     }
 
@@ -51,8 +70,14 @@ async function createHandler(options) {
 
           const trimmedPath = reqPath.endsWith('/') ? reqPath.slice(0, reqPath.length - 1) : reqPath;
           if (body.method === 'authenticate') {
+            try {
             const token = await pauth.authenticate(body.params.email);
-            res.write(token);
+              res.write(token);
+            }
+            catch (e) {
+              console.error(e);
+              res.write("Verification expired");
+            }
             res.end();
           }
           else if (body.method === 'addReader') {

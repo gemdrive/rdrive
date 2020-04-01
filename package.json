@@ -10,5 +10,8 @@
     "remfs-server": "./cli.js"
   },
   "author": "Anders Pitman",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "nodemailer": "^6.4.6"
+  }
 }

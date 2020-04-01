@@ -1,5 +1,6 @@
 const https = require('https');
 const fs = require('fs');
+const nodemailer = require("nodemailer");
 
 class PauthBuilder {
   async build() {
@@ -22,45 +23,81 @@ class PauthBuilder {
     }
     const tokens = JSON.parse(tokensText);
 
-    return new Pauth(allPerms, tokens);
+    let config;
+    try {
+      const configText = await fs.promises.readFile('pauth_config.json');
+      config = JSON.parse(configText);
+    }
+    catch (e) {
+      config = {};
+    }
+
+    return new Pauth(config, allPerms, tokens);
   }
 }
 
 class Pauth {
 
-  constructor(allPerms, tokens) {
+  constructor(config, allPerms, tokens) {
+    this._config = config;
     this._allPerms = allPerms;
     this._tokens = tokens;
+
+    this._pendingVerifications = {};
+
+    this._emailer = nodemailer.createTransport({
+      host: config.smtp.server,
+      port: config.smtp.port,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: config.smtp.username,
+        pass: config.smtp.password,
+      }
+    });
   }
 
   async authenticate(email) {
-    const emauthUrl = `https://emauth.io/verify?email=${email}`;
 
-    return new Promise((resolve, reject) => {
-      const req = https.get(emauthUrl, (res) => {
+    const key = createToken();
 
-        let data = '';
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
+    const verifyUrl = `${this._config.host}?method=verify&key=${key}`;
 
-        res.on('end', () => {
-          if (res.statusCode === 200) {
-            const token = createToken();
-            this._tokens[token] = email;
-            this._persistTokens();
-            resolve(token);
-          }
-          else {
-            reject(data);
-          }
-        });
-
-        res.on('error', (e) => {
-          reject(e);
-        });
-      });
+    let info = await this._emailer.sendMail({
+      from: `"pauth authenticator" <${this._config.smtp.sender}>`,
+      to: email,
+      subject: "Authentication request",
+      text: `This is an email verification request from ${this._config.host}. Please click the following link to complete the verification:\n\n ${verifyUrl}`,
+      //html: "<b>html Hi there</b>"
     });
+
+    const promise = new Promise((resolve, reject) => {
+      const signalDone = () => {
+        const token = createToken();
+        this._tokens[token] = email;
+        this._persistTokens();
+        resolve(token);
+      };
+
+      this._pendingVerifications[key] = signalDone;
+
+      setTimeout(() => {
+        delete this._pendingVerifications[key];
+        reject();
+      }, 60000);
+    });
+
+    return promise;
+  }
+
+  verify(key) {
+
+    if (this._pendingVerifications[key] === undefined) {
+      return false;
+    }
+
+    this._pendingVerifications[key]();
+    delete this._pendingVerifications[key];
+    return true;
   }
 
   async addReader(token, path, ident) {
