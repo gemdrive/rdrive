@@ -1,3 +1,6 @@
+* Add download button to UI to allow downloads using current token. Launching
+  out to external link doesn't work for permissioned files.
+* Add token URL parameter for creating "signed" URLs.
 * Handle too large of upload JSON.
 * Don't allow setting public owners (and maybe managers).
 * PUT debugging notes
