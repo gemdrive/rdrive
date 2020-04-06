@@ -1,7 +1,17 @@
 const fs = require('fs');
 const path = require('path');
+const url = require('url');
+const querystring = require('querystring');
 
 function parseToken(req, tokenName) {
+
+  const u = url.parse(req.url); 
+  const params = querystring.parse(u.query);
+
+  if (params.token) {
+    return params.token;
+  }
+
   if (req.headers[tokenName]) {
     return req.headers[tokenName];
   }
