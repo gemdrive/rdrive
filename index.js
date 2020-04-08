@@ -71,7 +71,7 @@ async function createHandler(options) {
           const trimmedPath = reqPath.endsWith('/') ? reqPath.slice(0, reqPath.length - 1) : reqPath;
           if (body.method === 'authenticate') {
             try {
-            const token = await pauth.authenticate(body.params.email);
+              const token = await pauth.authenticate(body.params.email);
               res.write(token);
             }
             catch (e) {
