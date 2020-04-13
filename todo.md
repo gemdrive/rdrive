@@ -11,3 +11,4 @@
   * This might be better left to the application layer, ie when uploading
     large files, the uploader should generative the hashes and store them
     alongside the files.
+* Rename createToken to something more general

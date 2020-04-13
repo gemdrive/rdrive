@@ -73,7 +73,10 @@ class Pauth {
     const promise = new Promise((resolve, reject) => {
       const signalDone = () => {
         const token = createToken();
-        this._tokens[token] = email;
+        this._tokens[token] = {
+          type: 'identity',
+          email
+        };
         this._persistTokens();
         resolve(token);
       };
@@ -87,6 +90,71 @@ class Pauth {
     });
 
     return promise;
+  }
+
+  async authorize(token, request) {
+
+    if (!token) {
+      const key = createToken();
+
+      const verifyUrl = `${this._config.host}?method=verify&key=${key}`;
+
+      let info = await this._emailer.sendMail({
+        from: `"pauth authorizer" <${this._config.smtp.sender}>`,
+        to: request.email,
+        subject: "Authorization request",
+        text: `This is an email verification request from ${this._config.host}. Please click the following link to complete the verification:\n\n ${verifyUrl}`,
+        //html: "<b>html Hi there</b>"
+      });
+
+      const promise = new Promise((resolve, reject) => {
+        const signalDone = () => {
+          const token = createToken();
+
+          this._tokens[token] = {
+            email: request.email,
+            perms: request.perms,
+          };
+          this._persistTokens();
+
+          resolve(token);
+        };
+
+        this._pendingVerifications[key] = signalDone;
+
+        setTimeout(() => {
+          delete this._pendingVerifications[key];
+          reject();
+        }, 60000);
+      });
+
+      token = await promise;
+    }
+
+    const perms = request.perms;
+
+    for (const path in perms) {
+
+      if (perms[path].read === true) {
+        if (!this.canRead(token, path)) {
+          return null;
+        }
+      }
+
+      if (perms[path].write === true) {
+        if (!this.canWrite(token, path)) {
+          return null;
+        }
+      }
+
+      if (perms[path].manage === true) {
+        if (!this.canManage(token, path)) {
+          return null;
+        }
+      }
+    }
+
+    return token;
   }
 
   verify(key) {
@@ -143,10 +211,18 @@ class Pauth {
     const ident = this._getIdent(token);
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
+
+    if (perms.readers.public === true) {
+      return true;
+    }
     
-    return perms.readers.public === true ||
-      perms.readers[ident] === true ||
-      this.canWrite(token, path);
+    const identCanRead = perms.readers[ident] === true ||
+      perms.writers[ident] === true ||
+      perms.managers[ident] === true ||
+      perms.owners[ident] === true;
+
+    const tokenPerms = this._getTokenPerms(token, parts);
+    return identCanRead && tokenPerms && tokenPerms.read === true;
   }
 
   canWrite(token, path) {
@@ -154,11 +230,16 @@ class Pauth {
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
 
-    console.log(ident, perms);
+    if (perms.writers.public === true) {
+      return true;
+    }
 
-    return perms.writers.public === true ||
-      perms.writers[ident] === true ||
-      this.canManage(token, path);
+    const identCanWrite = perms.writers[ident] === true ||
+      perms.managers[ident] === true ||
+      perms.owners[ident] === true;
+
+    const tokenPerms = this._getTokenPerms(token, parts);
+    return identCanWrite && tokenPerms && tokenPerms.write === true;
   }
 
   canManage(token, path) {
@@ -257,6 +338,42 @@ class Pauth {
     return perms;
   }
 
+  _getTokenPerms(token, pathParts) {
+    if (!this._tokens[token]) {
+      return null;
+    }
+
+    const perms = this._tokens[token].perms;
+
+    const tokenPerms = {
+      read: false,
+      write: false,
+      manage: false,
+      own: false,
+    };
+
+    let curPath = '';
+    for (const part of pathParts) {
+      curPath += '/' + part;
+      if (perms[curPath]) {
+        if (perms[curPath].read === true) {
+          tokenPerms.read = true;
+        }
+        if (perms[curPath].write === true) {
+          tokenPerms.write = true;
+        }
+        if (perms[curPath].manage === true) {
+          tokenPerms.manage = true;
+        }
+        if (perms[curPath].own === true) {
+          tokenPerms.own = true;
+        }
+      }
+    }
+
+    return tokenPerms;
+  }
+
   async _persistPerms() {
     const permsJson = JSON.stringify(this._allPerms, null, 4);
     await fs.promises.writeFile('pauth_perms.json', permsJson);
@@ -269,7 +386,7 @@ class Pauth {
 
   _getIdent(token) {
     if (this._tokens[token]) {
-      return this._tokens[token];
+      return this._tokens[token].email;
     }
     else {
       return 'public';

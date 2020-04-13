@@ -31,6 +31,9 @@ async function createHandler(options) {
 
     const params = querystring.parse(u.query);
 
+    const tokenName = 'remfs-token';
+    const token = parseToken(req, tokenName);
+
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     res.setHeader('Access-Control-Allow-Methods', '*');
@@ -66,17 +69,32 @@ async function createHandler(options) {
       req.on('end', async () => {
         try {
           const body = JSON.parse(data);
-          console.log(body);
 
           const trimmedPath = reqPath.endsWith('/') ? reqPath.slice(0, reqPath.length - 1) : reqPath;
           if (body.method === 'authenticate') {
             try {
-              const token = await pauth.authenticate(body.params.email);
-              res.write(token);
+              const newToken = await pauth.authenticate(body.params.email);
+              res.write(newToken);
             }
             catch (e) {
               console.error(e);
               res.write("Verification expired");
+            }
+            res.end();
+          }
+          else if (body.method === 'authorize') {
+            try {
+              const newToken = await pauth.authorize(token, body.params);
+              if (newToken === null) {
+                res.write("User does not have permissions to do that");
+              }
+              else {
+                res.write(newToken);
+              }
+            }
+            catch (e) {
+              console.error(e);
+              res.write("Authorization failed");
             }
             res.end();
           }
@@ -131,9 +149,6 @@ async function createHandler(options) {
       if (req.method === 'POST') {
         req.body = await parseBody(req);
       }
-
-      const tokenName = 'remfs-token';
-      const token = parseToken(req, tokenName);
 
       const perms = await pauth.getPerms(token);
 
