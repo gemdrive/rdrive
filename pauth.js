@@ -222,7 +222,16 @@ class Pauth {
       perms.owners[ident] === true;
 
     const tokenPerms = this._getTokenPerms(token, parts);
-    return identCanRead && tokenPerms && tokenPerms.read === true;
+    if (tokenPerms === null) {
+      return false;
+    }
+
+    const tokenCanRead = tokenPerms.read === true ||
+      tokenPerms.write === true ||
+      tokenPerms.manage === true ||
+      tokenPerms.own === true;
+
+    return identCanRead && tokenCanRead;
   }
 
   canWrite(token, path) {
@@ -239,7 +248,15 @@ class Pauth {
       perms.owners[ident] === true;
 
     const tokenPerms = this._getTokenPerms(token, parts);
-    return identCanWrite && tokenPerms && tokenPerms.write === true;
+    if (tokenPerms === null) {
+      return false;
+    }
+
+    const tokenCanWrite = tokenPerms.write === true ||
+      tokenPerms.manage === true ||
+      tokenPerms.own === true;
+
+    return identCanWrite && tokenCanWrite;
   }
 
   canManage(token, path) {
@@ -247,18 +264,35 @@ class Pauth {
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
 
-    return perms.managers[ident] === true ||
-      this.isOwner(token, path);
+    const identCanManage = perms.managers[ident] === true ||
+      perms.owners[ident] === true;
+
+    const tokenPerms = this._getTokenPerms(token, parts);
+    if (tokenPerms === null) {
+      return false;
+    }
+
+    const tokenCanManage = tokenPerms.manage === true ||
+      tokenPerms.own === true;
+
+    return identCanManage && tokenCanManage;
   }
 
-  isOwner(token, path) {
+  canOwn(token, path) {
     const ident = this._getIdent(token);
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
 
-    console.log(perms);
+    const identCanOwn = perms.owners[ident] === true;
 
-    return perms.owners[ident] === true;
+    const tokenPerms = this._getTokenPerms(token, parts);
+    if (tokenPerms === null) {
+      return false;
+    }
+
+    const tokenCanOwn = tokenPerms.own === true;
+
+    return identCanOwn && tokenCanOwn;
   }
 
   _assertManager(token, path) {
@@ -268,7 +302,7 @@ class Pauth {
   }
 
   _assertOwner(token, path) {
-    if (!this.isOwner(token, path)) {
+    if (!this.canOwn(token, path)) {
       throw new Error(`User does not have Owner permissions for path '${path}'`);
     }
   }
@@ -351,6 +385,13 @@ class Pauth {
       manage: false,
       own: false,
     };
+
+    if (perms['/'] !== undefined) {
+      tokenPerms.read = perms['/'].read;
+      tokenPerms.write = perms['/'].write;
+      tokenPerms.manage = perms['/'].manage;
+      tokenPerms.own = perms['/'].own;
+    }
 
     let curPath = '';
     for (const part of pathParts) {
