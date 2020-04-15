@@ -29,6 +29,13 @@ async function createHandler(options) {
     const u = url.parse(req.url); 
     const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
 
+    if (reqPath.includes('//') || reqPath.includes('..')) {
+      res.statusCode = 400;
+      res.write("Invalid path. Cannot contain '//' or '..'");
+      res.end();
+      return;
+    }
+
     const params = querystring.parse(u.query);
 
     const tokenName = 'remfs-token';
