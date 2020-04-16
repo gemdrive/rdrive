@@ -1,4 +1,3 @@
-* Add token URL parameter for creating "signed" URLs.
 * Handle too large of upload JSON.
 * Don't allow setting public owners (and maybe managers).
 * PUT debugging notes
@@ -11,4 +10,12 @@
   * This might be better left to the application layer, ie when uploading
     large files, the uploader should generative the hashes and store them
     alongside the files.
-* Rename createToken to something more general
+* Implement maxUses for tokens
+  * This could be tricky. Would probably require a link chain to parent tokens.
+* Is the implementation of expiresAt = createdAt + maxAge secure? If something
+  weird happens with leap seconds could the user create a token that lives
+  longer than it should?
+* Add token URL parameter for creating "signed" URLs.
+  * Postponed for now in favor of shortlived tokens.
+* Implement informing user token is expired. Requires keeping tokens around for
+  a while.

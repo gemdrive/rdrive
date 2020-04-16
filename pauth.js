@@ -58,7 +58,7 @@ class Pauth {
 
   async authenticate(email) {
 
-    const key = createToken();
+    const key = generateKey();
 
     const verifyUrl = `${this._config.host}?method=verify&key=${key}`;
 
@@ -72,7 +72,7 @@ class Pauth {
 
     const promise = new Promise((resolve, reject) => {
       const signalDone = () => {
-        const token = createToken();
+        const token = generateKey();
         this._tokens[token] = {
           type: 'identity',
           email
@@ -92,10 +92,10 @@ class Pauth {
     return promise;
   }
 
-  async authorize(token, request) {
+  async authorize(tokenKey, request) {
 
-    if (!token) {
-      const key = createToken();
+    if (!tokenKey) {
+      const key = generateKey();
 
       const verifyUrl = `${this._config.host}?method=verify&key=${key}`;
 
@@ -109,15 +109,26 @@ class Pauth {
 
       const promise = new Promise((resolve, reject) => {
         const signalDone = () => {
-          const token = createToken();
+          const tokenKey = generateKey();
 
-          this._tokens[token] = {
+          const timestamp = new Date();
+
+          const token = {
             email: request.email,
             perms: request.perms,
+            createdAt: timestamp.toISOString(),
           };
+
+          if (request.maxAge !== undefined) {
+            const expireSeconds = timestamp.getSeconds() + request.maxAge;
+            timestamp.setSeconds(expireSeconds);
+            token.expiresAt = timestamp.toISOString();
+          }
+
+          this._tokens[tokenKey] = token;
           this._persistTokens();
 
-          resolve(token);
+          resolve(tokenKey);
         };
 
         this._pendingVerifications[key] = signalDone;
@@ -128,7 +139,7 @@ class Pauth {
         }, 60000);
       });
 
-      token = await promise;
+      tokenKey = await promise;
     }
 
     const perms = request.perms;
@@ -136,25 +147,25 @@ class Pauth {
     for (const path in perms) {
 
       if (perms[path].read === true) {
-        if (!this.canRead(token, path)) {
+        if (!this.canRead(tokenKey, path)) {
           return null;
         }
       }
 
       if (perms[path].write === true) {
-        if (!this.canWrite(token, path)) {
+        if (!this.canWrite(tokenKey, path)) {
           return null;
         }
       }
 
       if (perms[path].manage === true) {
-        if (!this.canManage(token, path)) {
+        if (!this.canManage(tokenKey, path)) {
           return null;
         }
       }
     }
 
-    return token;
+    return tokenKey;
   }
 
   verify(key) {
@@ -372,12 +383,21 @@ class Pauth {
     return perms;
   }
 
-  _getTokenPerms(token, pathParts) {
-    if (!this._tokens[token]) {
+  _getTokenPerms(tokenKey, pathParts) {
+    if (!this._tokens[tokenKey]) {
       return null;
     }
 
-    const perms = this._tokens[token].perms;
+    const token = this._tokens[tokenKey];
+
+    if (token.expiresAt !== undefined) {
+      const timeNow = new Date();
+      if (timeNow.toISOString() > token.expiresAt) {
+        return null;
+      }
+    }
+
+    const perms = token.perms;
 
     const tokenPerms = {
       read: false,
@@ -466,7 +486,7 @@ function parsePath(path) {
   return path.slice(1).split('/');
 }
 
-function createToken() {
+function generateKey() {
   const possible = "0123456789abcdefghijkmnpqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
   function genCluster() {
