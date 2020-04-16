@@ -91,7 +91,15 @@ async function createHandler(options) {
           }
           else if (body.method === 'authorize') {
             try {
-              const newToken = await pauth.authorize(token, body.params);
+              let newToken;
+
+              if (token) {
+                newToken = pauth.delegate(token, body.params);
+              }
+              else {
+                newToken = await pauth.authorize(body.params);
+              }
+
               if (newToken === null) {
                 res.write("User does not have permissions to do that");
               }

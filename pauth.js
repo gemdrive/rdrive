@@ -92,55 +92,54 @@ class Pauth {
     return promise;
   }
 
-  async authorize(tokenKey, request) {
+  async authorize(request) {
 
-    if (!tokenKey) {
-      const key = generateKey();
+    const key = generateKey();
 
-      const verifyUrl = `${this._config.host}?method=verify&key=${key}`;
+    const verifyUrl = `${this._config.host}?method=verify&key=${key}`;
 
-      let info = await this._emailer.sendMail({
-        from: `"pauth authorizer" <${this._config.smtp.sender}>`,
-        to: request.email,
-        subject: "Authorization request",
-        text: `This is an email verification request from ${this._config.host}. Please click the following link to complete the verification:\n\n ${verifyUrl}`,
-        //html: "<b>html Hi there</b>"
-      });
+    let info = await this._emailer.sendMail({
+      from: `"pauth authorizer" <${this._config.smtp.sender}>`,
+      to: request.email,
+      subject: "Authorization request",
+      text: `This is an email verification request from ${this._config.host}. Please click the following link to complete the verification:\n\n ${verifyUrl}`,
+      //html: "<b>html Hi there</b>"
+    });
 
-      const promise = new Promise((resolve, reject) => {
-        const signalDone = () => {
-          const tokenKey = generateKey();
+    const promise = new Promise((resolve, reject) => {
+      const signalDone = () => {
+        const newTokenKey = generateKey();
 
-          const timestamp = new Date();
+        const timestamp = new Date();
 
-          const token = {
-            email: request.email,
-            perms: request.perms,
-            createdAt: timestamp.toISOString(),
-          };
-
-          if (request.maxAge !== undefined) {
-            const expireSeconds = timestamp.getSeconds() + request.maxAge;
-            timestamp.setSeconds(expireSeconds);
-            token.expiresAt = timestamp.toISOString();
-          }
-
-          this._tokens[tokenKey] = token;
-          this._persistTokens();
-
-          resolve(tokenKey);
+        const token = {
+          email: request.email,
+          perms: request.perms,
+          createdAt: timestamp.toISOString(),
         };
 
-        this._pendingVerifications[key] = signalDone;
+        if (request.maxAge !== undefined) {
+          const expireSeconds = timestamp.getSeconds() + request.maxAge;
+          timestamp.setSeconds(expireSeconds);
+          token.expiresAt = timestamp.toISOString();
+        }
 
-        setTimeout(() => {
-          delete this._pendingVerifications[key];
-          reject();
-        }, 60000);
-      });
+        // TODO: don't create token until after verifying ident permissions.
+        this._tokens[newTokenKey] = token;
+        this._persistTokens();
 
-      tokenKey = await promise;
-    }
+        resolve(newTokenKey);
+      };
+
+      this._pendingVerifications[key] = signalDone;
+
+      setTimeout(() => {
+        delete this._pendingVerifications[key];
+        reject();
+      }, 60000);
+    });
+
+    const tokenKey = await promise;
 
     const perms = request.perms;
 
@@ -166,6 +165,68 @@ class Pauth {
     }
 
     return tokenKey;
+  }
+
+  delegate(tokenKey, request) {
+
+    const perms = request.perms;
+
+    for (const path in perms) {
+
+      // TODO: implement _tokenCanRead etc here to be more efficient
+      if (perms[path].read === true) {
+        if (!this.canRead(tokenKey, path)) {
+          return null;
+        }
+      }
+
+      if (perms[path].write === true) {
+        if (!this.canWrite(tokenKey, path)) {
+          return null;
+        }
+      }
+
+      if (perms[path].manage === true) {
+        if (!this.canManage(tokenKey, path)) {
+          return null;
+        }
+      }
+    }
+
+    const parentToken = this._tokens[tokenKey];
+
+    const newTokenKey = generateKey();
+
+    const timestamp = new Date();
+
+    const token = {
+      email: request.email,
+      perms: request.perms,
+      createdAt: timestamp.toISOString(),
+    };
+
+    if (parentToken.expiresAt !== undefined) {
+      token.expiresAt = parentToken.expiresAt;
+    }
+
+    if (request.maxAge !== undefined) {
+
+      const expireSeconds = timestamp.getSeconds() + request.maxAge;
+      timestamp.setSeconds(expireSeconds);
+      token.expiresAt = timestamp.toISOString();
+
+      if (parentToken.expiresAt) {
+        const parentExpireDate = new Date(Date.parse(parentToken.expiresAt));
+        if (timestamp > parentExpireDate) {
+          return null;
+        }
+      }
+    }
+
+    this._tokens[newTokenKey] = token;
+    this._persistTokens();
+
+    return newTokenKey;
   }
 
   verify(key) {
@@ -227,11 +288,6 @@ class Pauth {
       return true;
     }
     
-    const identCanRead = perms.readers[ident] === true ||
-      perms.writers[ident] === true ||
-      perms.managers[ident] === true ||
-      perms.owners[ident] === true;
-
     const tokenPerms = this._getTokenPerms(token, parts);
     if (tokenPerms === null) {
       return false;
@@ -242,7 +298,7 @@ class Pauth {
       tokenPerms.manage === true ||
       tokenPerms.own === true;
 
-    return identCanRead && tokenCanRead;
+    return this._identCanRead(ident, perms) && tokenCanRead;
   }
 
   canWrite(token, path) {
@@ -254,10 +310,6 @@ class Pauth {
       return true;
     }
 
-    const identCanWrite = perms.writers[ident] === true ||
-      perms.managers[ident] === true ||
-      perms.owners[ident] === true;
-
     const tokenPerms = this._getTokenPerms(token, parts);
     if (tokenPerms === null) {
       return false;
@@ -267,16 +319,13 @@ class Pauth {
       tokenPerms.manage === true ||
       tokenPerms.own === true;
 
-    return identCanWrite && tokenCanWrite;
+    return this._identCanWrite(ident, perms) && tokenCanWrite;
   }
 
   canManage(token, path) {
     const ident = this._getIdent(token);
     const parts = parsePath(path);
     const perms = this._getPerms(parts);
-
-    const identCanManage = perms.managers[ident] === true ||
-      perms.owners[ident] === true;
 
     const tokenPerms = this._getTokenPerms(token, parts);
     if (tokenPerms === null) {
@@ -286,7 +335,7 @@ class Pauth {
     const tokenCanManage = tokenPerms.manage === true ||
       tokenPerms.own === true;
 
-    return identCanManage && tokenCanManage;
+    return this._identCanManage(ident, perms) && tokenCanManage;
   }
 
   canOwn(token, path) {
@@ -304,6 +353,22 @@ class Pauth {
     const tokenCanOwn = tokenPerms.own === true;
 
     return identCanOwn && tokenCanOwn;
+  }
+
+  _identCanRead(ident, perms) {
+    return perms.readers[ident] === true || this._identCanWrite(ident, perms);
+  }
+
+  _identCanWrite(ident, perms) {
+    return perms.writers[ident] === true || this._identCanManage(ident, perms);
+  }
+
+  _identCanManage(ident, perms) {
+    return perms.managers[ident] === true || this._identCanOwn(ident, perms);
+  }
+
+  _identCanOwn(ident, perms) {
+    return perms.owners[ident] === true;
   }
 
   _assertManager(token, path) {

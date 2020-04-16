@@ -19,3 +19,6 @@
   * Postponed for now in favor of shortlived tokens.
 * Implement informing user token is expired. Requires keeping tokens around for
   a while.
+* Make token perms and instance perms use same data model?
+  * Would cut down on perm-checking code
+  * Doesn't look as clean in pauth_perms.json, but might be worth it.
