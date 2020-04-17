@@ -22,3 +22,5 @@
 * Make token perms and instance perms use same data model?
   * Would cut down on perm-checking code
   * Doesn't look as clean in pauth_perms.json, but might be worth it.
+* Implement manual token deletion
+* Implement automatic token deletion

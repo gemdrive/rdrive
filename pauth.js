@@ -200,7 +200,7 @@ class Pauth {
     const timestamp = new Date();
 
     const token = {
-      email: request.email,
+      email: parentToken.email,
       perms: request.perms,
       createdAt: timestamp.toISOString(),
     };
