@@ -66,6 +66,10 @@ async function createHandler(options) {
       return;
     }
 
+    if (params.download === 'true') {
+      res.setHeader('Content-Disposition', 'attachment');
+    }
+
     if (req.headers['content-type'] === 'application/json') {
 
       let data = '';
