@@ -171,7 +171,9 @@ class Pauth {
 
     const perms = request.perms;
 
-    for (const path in perms) {
+    for (let path in perms) {
+
+      path = decodeURIComponent(path);
 
       // TODO: implement _tokenCanRead etc here to be more efficient
       if (perms[path].read === true) {
