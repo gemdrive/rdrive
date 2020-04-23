@@ -54,6 +54,22 @@ class Pauth {
         pass: config.smtp.password,
       }
     });
+
+    // periodically delete expired tokens
+    const TEN_MIN_MS = 10*60*1000;
+    setInterval(() => {
+      for (const key in this._tokens) {
+        const token = this._tokens[key];
+
+        if (token.expiresAt !== undefined) {
+          const timestamp = new Date();
+          const expireTime = new Date(Date.parse(token.expiresAt));
+          if (timestamp > expireTime) {
+            delete this._tokens[key];
+          }
+        }
+      }
+    }, TEN_MIN_MS);
   }
 
   async authenticate(email) {
