@@ -157,28 +157,29 @@ class Pauth {
 
     const tokenKey = await promise;
 
-    const perms = request.perms;
+    // TODO: consider adding back in check to verify user has permissions
+    // requested in token. I don't think it's necessary because it will be
+    // checked at request time.
+    //const perms = request.perms;
+    //for (const path in perms) {
+    //  if (perms[path].read === true) {
+    //    if (!this.canRead(tokenKey, path)) {
+    //      return null;
+    //    }
+    //  }
 
-    for (const path in perms) {
+    //  if (perms[path].write === true) {
+    //    if (!this.canWrite(tokenKey, path)) {
+    //      return null;
+    //    }
+    //  }
 
-      if (perms[path].read === true) {
-        if (!this.canRead(tokenKey, path)) {
-          return null;
-        }
-      }
-
-      if (perms[path].write === true) {
-        if (!this.canWrite(tokenKey, path)) {
-          return null;
-        }
-      }
-
-      if (perms[path].manage === true) {
-        if (!this.canManage(tokenKey, path)) {
-          return null;
-        }
-      }
-    }
+    //  if (perms[path].manage === true) {
+    //    if (!this.canManage(tokenKey, path)) {
+    //      return null;
+    //    }
+    //  }
+    //}
 
     return tokenKey;
   }
