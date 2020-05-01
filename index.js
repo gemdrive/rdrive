@@ -1,6 +1,7 @@
-const https = require('https');
 const fs = require('fs');
 const nodemailer = require("nodemailer");
+const url = require('url');
+const querystring = require('querystring');
 
 class PauthBuilder {
   async build() {
@@ -72,11 +73,125 @@ class Pauth {
     }, TEN_MIN_MS);
   }
 
+  async handle(req, res, rootPath) {
+
+    console.log("pauth-method");
+
+    const u = url.parse(req.url); 
+    const params = querystring.parse(u.query);
+
+    const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
+
+    if (params['pauth-method'] === 'verify') {
+      const success = this.verify(params.key);
+      if (success) {
+        res.write("Verification succeeded. You can close this tab and return to your previous session.");
+      }
+      else {
+        res.write("Verification failed. It may have expired.");
+      }
+    }
+
+    // TODO: this is currently broken. Will fix as I have need of the endpoints
+    if (req.headers['content-type'] === 'application/json') {
+
+      let data = '';
+      req.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      req.on('end', async () => {
+        try {
+          const body = JSON.parse(data);
+
+          const trimmedPath = reqPath.endsWith('/') ? reqPath.slice(0, reqPath.length - 1) : reqPath;
+          if (body.method === 'authenticate') {
+            try {
+              const newToken = await pauth.authenticate(body.params.email);
+              res.write(newToken);
+            }
+            catch (e) {
+              console.error(e);
+              res.write("Verification expired");
+            }
+            res.end();
+          }
+          else if (body.method === 'authorize') {
+            try {
+              let newToken;
+
+              if (token) {
+                newToken = pauth.delegate(token, body.params);
+              }
+              else {
+                newToken = await pauth.authorize(body.params);
+              }
+
+              if (newToken === null) {
+                res.write("User does not have permissions to do that");
+              }
+              else {
+                res.write(newToken);
+              }
+            }
+            catch (e) {
+              console.error(e);
+              res.write("Authorization failed");
+            }
+            res.end();
+          }
+          else if (body.method === 'addReader') {
+            await pauth.addReader(token, trimmedPath, body.params.email);
+            res.write(`Added reader ${body.params.email} to ${trimmedPath}`);
+            res.end();
+          }
+          else if (body.method === 'removeReader') {
+            await pauth.removeReader(token, trimmedPath, body.params.email);
+            res.write(`Removed reader ${body.params.email} from ${trimmedPath}`);
+            res.end();
+          }
+          else if (body.method === 'addWriter') {
+            await pauth.addWriter(token, trimmedPath, body.params.email);
+            res.write(`Added writer ${body.params.email} to ${trimmedPath}`);
+            res.end();
+          }
+          else if (body.method === 'addManager') {
+            await pauth.addManager(token, trimmedPath, body.params.email);
+            res.write(`Added manager ${body.params.email} to ${trimmedPath}`);
+            res.end();
+          }
+          else if (body.method === 'addOwner') {
+            await pauth.addOwner(token, trimmedPath, body.params.email);
+            res.write(`Added owner ${body.params.email} to ${trimmedPath}`);
+            res.end();
+          }
+          else if (body.method === 'concat') {
+            await handleConcat(req, res, body.params, fsRoot, reqPath, pauth);
+          }
+          else {
+            res.statusCode = 400;
+            res.write(`Invalid method '${body.method}'`);
+            res.end();
+          }
+        }
+        catch (e) {
+          res.statusCode = 400;
+          res.write(e.toString());
+          res.end();
+        }
+      });
+
+      return;
+    }
+
+    res.end();
+  }
+
   async authenticate(email) {
 
     const key = generateKey();
 
-    const verifyUrl = `${this._config.host}?method=verify&key=${key}`;
+    const verifyUrl = `${this._config.host}?pauth-method=verify&key=${key}`;
 
     let info = await this._emailer.sendMail({
       from: `"pauth authenticator" <${this._config.smtp.sender}>`,
@@ -112,7 +227,7 @@ class Pauth {
 
     const key = generateKey();
 
-    const verifyUrl = `${this._config.host}?method=verify&key=${key}`;
+    const verifyUrl = `${this._config.host}?pauth-method=verify&key=${key}`;
 
     let info = await this._emailer.sendMail({
       from: `"pauth authorizer" <${this._config.smtp.sender}>`,
