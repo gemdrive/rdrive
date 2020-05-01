@@ -2,6 +2,7 @@ const fs = require('fs');
 const nodemailer = require("nodemailer");
 const url = require('url');
 const querystring = require('querystring');
+const path = require('path');
 
 class PauthBuilder {
   async build() {
@@ -75,14 +76,39 @@ class Pauth {
 
   async handle(req, res, rootPath, token) {
 
-    console.log("pauth-method");
-
     const u = url.parse(req.url); 
     const params = querystring.parse(u.query);
 
     const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
 
-    if (params['pauth-method'] === 'verify') {
+    const method = params['pauth-method'];
+
+    if (method === 'authorize') {
+
+      const cookies = parseCookies(req.headers.cookie);
+      const cookieTokenKey = cookies['pauth-token'];
+
+      let filePath;
+      // TODO: canOwn root indicates this is an "identity token", ie all powers
+      // for the given user. It's a bit of a hack
+      if (cookieTokenKey === undefined || !this.canOwn(cookieTokenKey, '/')) {
+        filePath = path.join(__dirname, 'login.html');
+      }
+      else {
+        filePath = path.join(__dirname, 'authorize.html');
+      }
+
+      const stat = await fs.promises.stat(filePath);
+
+      res.writeHead(200, {
+        'Content-Type': 'text/html',
+        'Content-Length': stat.size,
+      });
+
+      const f = fs.createReadStream(filePath);
+      f.pipe(res);
+    }
+    else if (method === 'verify') {
       const success = this.verify(params.key);
       if (success) {
         res.write("Verification succeeded. You can close this tab and return to your previous session.");
@@ -90,6 +116,8 @@ class Pauth {
       else {
         res.write("Verification failed. It may have expired.");
       }
+
+      res.end();
     }
 
     if (req.headers['content-type'] === 'application/json') {
@@ -108,7 +136,10 @@ class Pauth {
               newToken = this.delegate(token, body.params);
             }
             else {
-              newToken = await this.authorize(body.params);
+              const keys = await this.authorize(body.params);
+              newToken = keys.tokenKey;
+              const cookieTokenKey = keys.cookieTokenKey;
+              res.setHeader('Set-Cookie', `pauth-token=${cookieTokenKey}; SameSite=Strict; Max-Age=259200; Secure; HttpOnly`);
             }
 
             if (newToken === null) {
@@ -122,6 +153,7 @@ class Pauth {
             console.error(e);
             res.write("Authorization failed");
           }
+
           res.end();
         }
         else if (body.method === 'addReader') {
@@ -163,8 +195,6 @@ class Pauth {
 
       return;
     }
-
-    res.end();
   }
 
   async authorize(request) {
@@ -184,6 +214,7 @@ class Pauth {
     const promise = new Promise((resolve, reject) => {
       const signalDone = () => {
         const newTokenKey = generateKey();
+        const newCookieTokenKey = generateKey();
 
         const timestamp = new Date();
 
@@ -201,9 +232,10 @@ class Pauth {
 
         // TODO: don't create token until after verifying ident permissions.
         this._tokens[newTokenKey] = token;
+        this._tokens[newCookieTokenKey] = token;
         this._persistTokens();
 
-        resolve(newTokenKey);
+        resolve({ tokenKey: newTokenKey, cookieTokenKey: newCookieTokenKey });
       };
 
       this._pendingVerifications[key] = signalDone;
@@ -430,6 +462,7 @@ class Pauth {
 
     const tokenCanOwn = tokenPerms.own === true;
 
+    console.log(perms, tokenPerms);
     return identCanOwn && tokenCanOwn;
   }
 
@@ -665,6 +698,15 @@ async function parseBody(req) {
       reject(err);
     });
   });
+}
+
+// taken from https://stackoverflow.com/a/31645958/943814
+function parseCookies(cookie) {
+  let rx = /([^;=\s]*)=([^;]*)/g;
+  let obj = { };
+  for ( let m ; m = rx.exec(cookie) ; )
+    obj[ m[1] ] = decodeURIComponent( m[2] );
+  return obj;
 }
 
 module.exports = {
