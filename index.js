@@ -51,7 +51,7 @@ async function createHandler(options) {
     }
 
     if (params['pauth-method'] !== undefined) {
-      await pauth.handle(req, res, rootPath);
+      await pauth.handle(req, res, rootPath, token);
       return;
     } 
 
@@ -64,6 +64,11 @@ async function createHandler(options) {
 
       if (req.method === 'POST') {
         req.body = await parseBody(req);
+
+        // TODO: fix. Used to be part of code now in pauth
+        //else if (body.method === 'concat') {
+        //  await handleConcat(req, res, body.params, fsRoot, reqPath, pauth);
+        //}
       }
 
       const perms = await pauth.getPerms(token);
