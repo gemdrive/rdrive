@@ -1,0 +1,14 @@
+{
+  "name": "pauth",
+  "version": "0.1.0",
+  "description": "path-based authorization server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "nodemailer": "^6.4.6"
+  }
+}
