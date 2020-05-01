@@ -85,13 +85,10 @@ class Pauth {
 
     if (method === 'authorize') {
 
-      const cookies = parseCookies(req.headers.cookie);
-      const cookieTokenKey = cookies['pauth-token'];
-
       let filePath;
       // TODO: canOwn root indicates this is an "identity token", ie all powers
       // for the given user. It's a bit of a hack
-      if (cookieTokenKey === undefined || !this.canOwn(cookieTokenKey, '/')) {
+      if (!token || !this.canOwn(token, '/')) {
         filePath = path.join(__dirname, 'login.html');
       }
       else {
@@ -139,7 +136,7 @@ class Pauth {
               const keys = await this.authorize(body.params);
               newToken = keys.tokenKey;
               const cookieTokenKey = keys.cookieTokenKey;
-              res.setHeader('Set-Cookie', `pauth-token=${cookieTokenKey}; SameSite=Strict; Max-Age=259200; Secure; HttpOnly`);
+              res.setHeader('Set-Cookie', `access_token=${cookieTokenKey}; SameSite=Strict; Max-Age=259200; Secure; HttpOnly`);
             }
 
             if (newToken === null) {
@@ -462,7 +459,6 @@ class Pauth {
 
     const tokenCanOwn = tokenPerms.own === true;
 
-    console.log(perms, tokenPerms);
     return identCanOwn && tokenCanOwn;
   }
 
@@ -700,14 +696,6 @@ async function parseBody(req) {
   });
 }
 
-// taken from https://stackoverflow.com/a/31645958/943814
-function parseCookies(cookie) {
-  let rx = /([^;=\s]*)=([^;]*)/g;
-  let obj = { };
-  for ( let m ; m = rx.exec(cookie) ; )
-    obj[ m[1] ] = decodeURIComponent( m[2] );
-  return obj;
-}
 
 module.exports = {
   PauthBuilder,
