@@ -1,3 +1,7 @@
+const fs = require('fs');
+const path = require('path');
+
+
 async function renderHtmlDir(req, res, rootPath, reqPath, fsPath) {
   let filenames;
   try {
@@ -18,7 +22,7 @@ async function renderHtmlDir(req, res, rootPath, reqPath, fsPath) {
   if (pathParts.length > 1) {
     pathParts.pop();
     const parentUrl = rootPath + pathParts.join('/');
-    listing = `<a href=${parentUrl}>..[parent]</a> &#128193`;
+    listing = `<a href=../>..[parent]</a> &#128193`;
   }
   else {
     listing = '';
@@ -26,7 +30,8 @@ async function renderHtmlDir(req, res, rootPath, reqPath, fsPath) {
 
   for (const filename of filenames) {
 
-    const url = rootPath + reqPath + '/' + filename;
+    //const url = rootPath + reqPath + '/' + filename;
+    const url = './' + filename;
     const childFsPath = path.join(fsPath, filename);
 
     let childStats;
@@ -41,7 +46,7 @@ async function renderHtmlDir(req, res, rootPath, reqPath, fsPath) {
 
     let link;
     if (childStats.isDirectory()) {
-      link = `<a href=${url}>${filename}</a> &#128193`;
+      link = `<a href=${url}/>${filename}</a> &#128193`;
     }
     else {
       link = `<a target='_blank' href=${url}>${filename}</a>`;
