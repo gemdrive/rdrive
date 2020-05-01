@@ -3,13 +3,21 @@ const path = require('path');
 const url = require('url');
 const querystring = require('querystring');
 
-function parseToken(req, tokenName) {
+function parseToken(req) {
+
+  const tokenName = 'access_token';
+
+  const cookies = parseCookies(req.headers.cookie);
+
+  if (cookies[tokenName]) {
+    return cookies[tokenName];
+  }
 
   const u = url.parse(req.url); 
   const params = querystring.parse(u.query);
 
-  if (params.token) {
-    return params.token;
+  if (params[tokenName]) {
+    return params[tokenName];
   }
 
   if (req.headers[tokenName]) {
@@ -24,6 +32,15 @@ function parseToken(req, tokenName) {
   }
 
   return null;
+}
+
+// taken from https://stackoverflow.com/a/31645958/943814
+function parseCookies(cookie) {
+  let rx = /([^;=\s]*)=([^;]*)/g;
+  let obj = { };
+  for ( let m ; m = rx.exec(cookie) ; )
+    obj[ m[1] ] = decodeURIComponent( m[2] );
+  return obj;
 }
 
 function parsePath(path) {

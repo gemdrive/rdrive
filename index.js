@@ -38,8 +38,7 @@ async function createHandler(options) {
 
     const params = querystring.parse(u.query);
 
-    const tokenName = 'remfs-token';
-    const token = parseToken(req, tokenName);
+    const token = parseToken(req);
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');

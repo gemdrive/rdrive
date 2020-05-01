@@ -1,3 +1,4 @@
+* Return/redirect to login page when unauthorized
 * Handle too large of upload JSON.
 * Don't allow setting public owners (and maybe managers).
 * PUT debugging notes
