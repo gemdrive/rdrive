@@ -12,6 +12,6 @@
   "author": "Anders Pitman",
   "license": "MIT",
   "dependencies": {
-    "nodemailer": "^6.4.6"
+    "pauth": "^0.1.0"
   }
 }
