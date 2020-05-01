@@ -73,7 +73,7 @@ class Pauth {
     }, TEN_MIN_MS);
   }
 
-  async handle(req, res, rootPath) {
+  async handle(req, res, rootPath, token) {
 
     console.log("pauth-method");
 
@@ -92,7 +92,6 @@ class Pauth {
       }
     }
 
-    // TODO: this is currently broken. Will fix as I have need of the endpoints
     if (req.headers['content-type'] === 'application/json') {
 
       const body = JSON.parse(await parseBody(req));
@@ -100,26 +99,16 @@ class Pauth {
       try {
 
         const trimmedPath = reqPath.endsWith('/') ? reqPath.slice(0, reqPath.length - 1) : reqPath;
-        if (body.method === 'authenticate') {
-          try {
-            const newToken = await pauth.authenticate(body.params.email);
-            res.write(newToken);
-          }
-          catch (e) {
-            console.error(e);
-            res.write("Verification expired");
-          }
-          res.end();
-        }
-        else if (body.method === 'authorize') {
+
+        if (body.method === 'authorize') {
           try {
             let newToken;
 
             if (token) {
-              newToken = pauth.delegate(token, body.params);
+              newToken = this.delegate(token, body.params);
             }
             else {
-              newToken = await pauth.authorize(body.params);
+              newToken = await this.authorize(body.params);
             }
 
             if (newToken === null) {
@@ -136,32 +125,29 @@ class Pauth {
           res.end();
         }
         else if (body.method === 'addReader') {
-          await pauth.addReader(token, trimmedPath, body.params.email);
+          await this.addReader(token, trimmedPath, body.params.email);
           res.write(`Added reader ${body.params.email} to ${trimmedPath}`);
           res.end();
         }
         else if (body.method === 'removeReader') {
-          await pauth.removeReader(token, trimmedPath, body.params.email);
+          await this.removeReader(token, trimmedPath, body.params.email);
           res.write(`Removed reader ${body.params.email} from ${trimmedPath}`);
           res.end();
         }
         else if (body.method === 'addWriter') {
-          await pauth.addWriter(token, trimmedPath, body.params.email);
+          await this.addWriter(token, trimmedPath, body.params.email);
           res.write(`Added writer ${body.params.email} to ${trimmedPath}`);
           res.end();
         }
         else if (body.method === 'addManager') {
-          await pauth.addManager(token, trimmedPath, body.params.email);
+          await this.addManager(token, trimmedPath, body.params.email);
           res.write(`Added manager ${body.params.email} to ${trimmedPath}`);
           res.end();
         }
         else if (body.method === 'addOwner') {
-          await pauth.addOwner(token, trimmedPath, body.params.email);
+          await this.addOwner(token, trimmedPath, body.params.email);
           res.write(`Added owner ${body.params.email} to ${trimmedPath}`);
           res.end();
-        }
-        else if (body.method === 'concat') {
-          await handleConcat(req, res, body.params, fsRoot, reqPath, pauth);
         }
         else {
           res.statusCode = 400;
@@ -179,42 +165,6 @@ class Pauth {
     }
 
     res.end();
-  }
-
-  async authenticate(email) {
-
-    const key = generateKey();
-
-    const verifyUrl = `${this._config.host}?pauth-method=verify&key=${key}`;
-
-    let info = await this._emailer.sendMail({
-      from: `"pauth authenticator" <${this._config.smtp.sender}>`,
-      to: email,
-      subject: "Authentication request",
-      text: `This is an email verification request from ${this._config.host}. Please click the following link to complete the verification:\n\n ${verifyUrl}`,
-      //html: "<b>html Hi there</b>"
-    });
-
-    const promise = new Promise((resolve, reject) => {
-      const signalDone = () => {
-        const token = generateKey();
-        this._tokens[token] = {
-          type: 'identity',
-          email
-        };
-        this._persistTokens();
-        resolve(token);
-      };
-
-      this._pendingVerifications[key] = signalDone;
-
-      setTimeout(() => {
-        delete this._pendingVerifications[key];
-        reject();
-      }, 60000);
-    });
-
-    return promise;
   }
 
   async authorize(request) {
