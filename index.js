@@ -90,20 +90,85 @@ class Pauth {
       // for the given user. It's a bit of a hack
       if (!token || !this.canOwn(token, '/')) {
         filePath = path.join(__dirname, 'login.html');
+        const stat = await fs.promises.stat(filePath);
+
+        res.writeHead(200, {
+          'Content-Type': 'text/html',
+          'Content-Length': stat.size,
+        });
+
+        const f = fs.createReadStream(filePath);
+        f.pipe(res);
       }
       else {
-        filePath = path.join(__dirname, 'authorize.html');
+
+        const errorUrl = params.redirect_uri + '?error=fail';
+
+        if (!params.redirect_uri.startsWith(params.client_id)) {
+          res.redirect(errorUrl);
+          return;
+        }
+
+        function parsePermsFromScope(scopes) {
+          const perms = {};
+
+          for (const scope of scopes.split(' ')) {
+            const parts = scope.split(':');
+            const path = parts[0];
+            const perm = parts[1];
+            perms[path] = {
+              [perm]: true
+            };
+          }
+
+          return perms;
+        }
+
+        const perms = parsePermsFromScope(params.scope);
+
+        const accessTokenKey = this.delegate(token, { perms });
+        if (!accessTokenKey) {
+          res.redirect(errorUrl);
+          return;
+        }
+
+        const authToken = {
+          accessTokenKey,
+        };
+
+        const authTokenKey = generateKey();
+        this._tokens[authTokenKey] = authToken;
+        this._persistTokens();
+
+        const successUrl = params.redirect_uri + '&code=' + authTokenKey;
+
+        const html = `
+          <h1>Hi there</h1>
+          <a href="${successUrl}">Authorize</a>
+          <a href="${errorUrl}">Deny</a>
+        `;
+
+        res.writeHead(200, {
+          'Content-Type': 'text/html',
+          'Content-Length': html.length,
+        });
+
+        res.write(html);
+      }
+    }
+    else if (method === 'token') {
+      const authCode = params['auth-code'];
+      const authToken = this._tokens[authCode];
+
+      if (authToken) {
+        res.write(authToken.accessTokenKey);
+        delete this._tokens[authCode];
+      }
+      else {
+        res.status = 400;
       }
 
-      const stat = await fs.promises.stat(filePath);
-
-      res.writeHead(200, {
-        'Content-Type': 'text/html',
-        'Content-Length': stat.size,
-      });
-
-      const f = fs.createReadStream(filePath);
-      f.pipe(res);
+      res.end();
     }
     else if (method === 'verify') {
       const success = this.verify(params.key);
