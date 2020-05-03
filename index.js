@@ -157,7 +157,17 @@ class Pauth {
       }
     }
     else if (method === 'token') {
-      const authCode = params['auth-code'];
+
+      const grantType = params['grant_type'];
+
+      if (grantType !== 'authorization_code') {
+        res.status = 400;
+        res.write("Invalid grant_type. Must be authorization_code");
+        res.end();
+        return;
+      }
+
+      const authCode = params['code'];
       const authToken = this._tokens[authCode];
 
       if (authToken) {
