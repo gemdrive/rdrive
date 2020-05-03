@@ -102,12 +102,13 @@ class Pauth {
       }
       else {
 
-        const errorUrl = params.redirect_uri + '?error=fail';
-
         if (!params.redirect_uri.startsWith(params.client_id)) {
-          res.redirect(errorUrl);
+          res.write("Invalid redirect_uri. Not safe to send you back to the app");
+          res.end();
           return;
         }
+
+        const errorUrl = params.redirect_uri + '?error=fail';
 
         function parsePermsFromScope(scopes) {
           const perms = {};
