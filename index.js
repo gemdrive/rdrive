@@ -110,22 +110,7 @@ class Pauth {
           return;
         }
 
-        const errorUrl = params.redirect_uri + '?error=fail';
-
-        function parsePermsFromScope(scopes) {
-          const perms = {};
-
-          for (const scope of scopes.split(' ')) {
-            const parts = scope.split(':');
-            const path = parts[0];
-            const perm = parts[1];
-            perms[path] = {
-              [perm]: true
-            };
-          }
-
-          return perms;
-        }
+        const errorUrl = params.redirect_uri + '?error=access_denied';
 
         const perms = parsePermsFromScope(params.scope);
 
@@ -772,6 +757,21 @@ async function parseBody(req) {
       reject(err);
     });
   });
+}
+
+function parsePermsFromScope(scopes) {
+  const perms = {};
+
+  for (const scope of scopes.split(' ')) {
+    const parts = scope.split(':');
+    const path = parts[0];
+    const perm = parts[1];
+    perms[path] = {
+      [perm]: true
+    };
+  }
+
+  return perms;
 }
 
 
