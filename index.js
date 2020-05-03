@@ -76,6 +76,8 @@ class Pauth {
 
   async handle(req, res, rootPath, token) {
 
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+
     const u = url.parse(req.url); 
     const params = querystring.parse(u.query);
 
