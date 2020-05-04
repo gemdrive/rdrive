@@ -4,8 +4,7 @@ const { parseToken, parsePath, encodePath, buildRemfsDir } = require('./utils.js
 
 
 async function handleUpload(req, res, fsRoot, reqPath, pauth) {
-  const tokenName = 'remfs-token';
-  const token = parseToken(req, tokenName);
+  const token = parseToken(req);
 
   const perms = await pauth.getPerms(token);
 
