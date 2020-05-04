@@ -85,7 +85,48 @@ class Pauth {
 
     const method = params['pauth-method'];
 
-    if (method === 'authorize') {
+    if (method === 'login') {
+      try {
+
+        const authReq = {
+          email: params.email,
+          perms: {
+            '/': {
+              own: true,
+            },
+          },
+        };
+
+        const keys = await this.authorize(authReq);
+        const newToken = keys.tokenKey;
+        const cookieTokenKey = keys.cookieTokenKey;
+        res.setHeader('Set-Cookie', `access_token=${cookieTokenKey}; SameSite=Strict; Max-Age=259200; Secure; HttpOnly`);
+        if (newToken === null) {
+          res.write("User does not have permissions to do that");
+        }
+        else {
+          res.write(newToken);
+        }
+      }
+      catch (e) {
+        console.error(e);
+        res.write("Authorization failed");
+      }
+
+      res.end();
+    }
+    else if (method === 'verify') {
+      const success = this.verify(params.key);
+      if (success) {
+        res.write("Verification succeeded. You can close this tab and return to your previous session.");
+      }
+      else {
+        res.write("Verification failed. It may have expired.");
+      }
+
+      res.end();
+    }
+    else if (method === 'authorize') {
 
       let filePath;
       // TODO: canOwn root indicates this is an "identity token", ie all powers
@@ -167,93 +208,6 @@ class Pauth {
       }
 
       res.end();
-    }
-    else if (method === 'verify') {
-      const success = this.verify(params.key);
-      if (success) {
-        res.write("Verification succeeded. You can close this tab and return to your previous session.");
-      }
-      else {
-        res.write("Verification failed. It may have expired.");
-      }
-
-      res.end();
-    }
-
-    if (req.headers['content-type'] === 'application/json') {
-
-      const body = JSON.parse(await parseBody(req));
-
-      try {
-
-        const trimmedPath = reqPath.endsWith('/') ? reqPath.slice(0, reqPath.length - 1) : reqPath;
-
-        if (body.method === 'authorize') {
-          try {
-            let newToken;
-
-            if (token) {
-              newToken = this.delegate(token, body.params);
-            }
-            else {
-              const keys = await this.authorize(body.params);
-              newToken = keys.tokenKey;
-              const cookieTokenKey = keys.cookieTokenKey;
-              res.setHeader('Set-Cookie', `access_token=${cookieTokenKey}; SameSite=Strict; Max-Age=259200; Secure; HttpOnly`);
-            }
-
-            if (newToken === null) {
-              res.write("User does not have permissions to do that");
-            }
-            else {
-              res.write(newToken);
-            }
-          }
-          catch (e) {
-            console.error(e);
-            res.write("Authorization failed");
-          }
-
-          res.end();
-        }
-        else if (body.method === 'addReader') {
-          await this.addReader(token, trimmedPath, body.params.email);
-          res.write(`Added reader ${body.params.email} to ${trimmedPath}`);
-          res.end();
-        }
-        else if (body.method === 'removeReader') {
-          await this.removeReader(token, trimmedPath, body.params.email);
-          res.write(`Removed reader ${body.params.email} from ${trimmedPath}`);
-          res.end();
-        }
-        else if (body.method === 'addWriter') {
-          await this.addWriter(token, trimmedPath, body.params.email);
-          res.write(`Added writer ${body.params.email} to ${trimmedPath}`);
-          res.end();
-        }
-        else if (body.method === 'addManager') {
-          await this.addManager(token, trimmedPath, body.params.email);
-          res.write(`Added manager ${body.params.email} to ${trimmedPath}`);
-          res.end();
-        }
-        else if (body.method === 'addOwner') {
-          await this.addOwner(token, trimmedPath, body.params.email);
-          res.write(`Added owner ${body.params.email} to ${trimmedPath}`);
-          res.end();
-        }
-        else {
-          res.statusCode = 400;
-          res.write(`Invalid method '${body.method}'`);
-          res.end();
-        }
-      }
-      catch (e) {
-        res.statusCode = 400;
-        res.write(e.toString());
-        res.end();
-      }
-
-      return;
     }
   }
 

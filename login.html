@@ -8,7 +8,6 @@
 
       const LoginView = (rootUrl) => {
         const dom = document.createElement('div');
-        dom.classList.add('remfs-delver__login');
       
         render();
       
@@ -34,34 +33,17 @@
       
             dom.innerHTML = '<h1>Check your email to confirm login</h1>';
       
-            fetch(rootUrl + '?pauth-method=dummy', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'authorize',
-                params: {
-                  email: emailEl.value,
-                  perms: {
-                    "/": {
-                      own: true,
-                    },
-                  },
-                }
-              }),
-            })
+            fetch(rootUrl + `?pauth-method=login&email=${emailEl.value}`)
             .then(response => {
               console.log(response);
               if (response.status !== 200) {
-                throw new Error("Authorization failed");
+                throw new Error("Login failed");
               }
       
               return response.text();
             })
             .then(token => {
-              dom.dispatchEvent(new CustomEvent('authorized', {
+              dom.dispatchEvent(new CustomEvent('logged-in', {
                 bubbles: true,
                 detail: {
                   token,
@@ -87,7 +69,7 @@
       }
       
       const loginView = LoginView('');
-      loginView.addEventListener('authorized', () => {
+      loginView.addEventListener('logged-in', () => {
         location.reload();
       });
       
