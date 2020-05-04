@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const querystring = require('querystring');
+const http = require('https');
 const { renderHtmlDir } = require('./render_html_dir.js');
 const { PauthBuilder } = require('pauth');
 const { parseToken, parsePath, encodePath, buildRemfsDir, getMime } = require('./utils.js');
@@ -49,10 +50,33 @@ async function createHandler(options) {
       return;
     }
 
+    const perms = await pauth.getPerms(token);
+
     if (params['pauth-method'] !== undefined) {
       await pauth.handle(req, res, rootPath, token);
       return;
     } 
+
+    if (params['remfs-method'] === 'remote-download') {
+
+      if (perms.canWrite(reqPath)) {
+        http.get(params['url'], (getRes) => {
+          const fsPath = fsRoot + reqPath;
+          const stream = fs.createWriteStream(fsPath);
+          getRes.pipe(stream);
+          getRes.on('end', () => {
+            res.end();
+          });
+        });
+      }
+      else {
+        res.statusCode = 403;
+        res.write("Unauthorized");
+        res.end();
+      }
+
+      return;
+    }
 
     if (params.download === 'true') {
       res.setHeader('Content-Disposition', 'attachment');
@@ -69,8 +93,6 @@ async function createHandler(options) {
         //  await handleConcat(req, res, body.params, fsRoot, reqPath, pauth);
         //}
       }
-
-      const perms = await pauth.getPerms(token);
 
       if (!perms.canRead(reqPath)) {
         res.statusCode = 403;

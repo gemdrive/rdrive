@@ -14,3 +14,9 @@
     But how often are large files modified?
 * Return perms in remfs.json so frontend can indicate user doesn't have
   access, as well as avoiding requests that will fail.
+* Parse token from Authorization header
+* Implement caching
+  * Do we want to apply different caching per domain, to completely prevent
+    caching when running apps like delver?
+* Implement domain/link map for routing different domain names
+* Fix HTML dir listings with whitespace in names
