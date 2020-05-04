@@ -131,7 +131,9 @@ class Pauth {
       let filePath;
       // TODO: canOwn root indicates this is an "identity token", ie all powers
       // for the given user. It's a bit of a hack
-      if (!token || !this.canOwn(token, '/')) {
+      const pathParts = parsePath(reqPath);
+      const tokenPerms = this._getTokenPerms(token, pathParts);
+      if (!token || !(tokenPerms.own === true)) {
         filePath = path.join(__dirname, 'login.html');
         const stat = await fs.promises.stat(filePath);
 
@@ -151,13 +153,17 @@ class Pauth {
           return;
         }
 
-        const errorUrl = params.redirect_uri + '?error=access_denied';
+        // TODO: what if error is the first param?
+        const errorUrl = params.redirect_uri + '&error=access_denied';
 
         const perms = parsePermsFromScope(params.scope);
 
         const accessTokenKey = this.delegate(token, { perms });
         if (!accessTokenKey) {
-          res.redirect(errorUrl);
+          res.writeHead(302, {
+            'Location': errorUrl,
+          });
+          res.end();
           return;
         }
 
