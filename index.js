@@ -100,7 +100,7 @@ class Pauth {
         const keys = await this.authorize(authReq);
         const newToken = keys.tokenKey;
         const cookieTokenKey = keys.cookieTokenKey;
-        res.setHeader('Set-Cookie', `access_token=${cookieTokenKey}; SameSite=Strict; Max-Age=259200; Secure; HttpOnly`);
+        res.setHeader('Set-Cookie', `access_token=${cookieTokenKey}; SameSite=Lax; Max-Age=259200; Secure; HttpOnly`);
         if (newToken === null) {
           res.write("User does not have permissions to do that");
         }
@@ -133,7 +133,7 @@ class Pauth {
       // for the given user. It's a bit of a hack
       const pathParts = parsePath(reqPath);
       const tokenPerms = this._getTokenPerms(token, pathParts);
-      if (!token || !(tokenPerms.own === true)) {
+      if (!tokenPerms || !(tokenPerms.own === true)) {
         filePath = path.join(__dirname, 'login.html');
         const stat = await fs.promises.stat(filePath);
 
