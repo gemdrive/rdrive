@@ -60,8 +60,14 @@ async function createHandler(options) {
     if (params['remfs-method'] === 'remote-download') {
 
       if (perms.canWrite(reqPath)) {
+
+        const remoteUrl = url.parse(decodeURIComponent(params.url));
+        const remotePath = parsePath(remoteUrl.pathname)
+        const filename = decodeURIComponent(remotePath[remotePath.length - 1]);
+
+        const fsPath = fsRoot + reqPath + '/' + filename;
+
         http.get(params['url'], (getRes) => {
-          const fsPath = fsRoot + reqPath;
           const stream = fs.createWriteStream(fsPath);
           getRes.pipe(stream);
           getRes.on('end', () => {
