@@ -1,9 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+const { ByteCounterStream } = require('./byte_counter.js');
 const { parseToken, parsePath, encodePath, buildRemfsDir } = require('./utils.js');
 
 
-async function handleUpload(req, res, fsRoot, reqPath, pauth) {
+async function handleUpload(req, res, fsRoot, reqPath, pauth, emit) {
   const token = parseToken(req);
 
   const perms = await pauth.getPerms(token);
@@ -38,7 +39,22 @@ async function handleUpload(req, res, fsRoot, reqPath, pauth) {
 
   const stream = fs.createWriteStream(fsPath);
 
-  req.pipe(stream);
+  // emit updates every 10MB
+  const updateByteCount = 10*1024*1024;
+  let count = 0;
+  const byteCounter = new ByteCounterStream(updateByteCount, (n) => {
+    count += n;
+    emit(reqPath, {
+      type: 'update',
+      remfs: {
+        size: count,
+      },
+    });
+  });
+
+  req
+    .pipe(byteCounter)
+    .pipe(stream);
 
   req.on('end', async () => {
     const remfsPath = path.dirname(fsPath);

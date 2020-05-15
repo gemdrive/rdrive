@@ -9,6 +9,7 @@ const { parseToken, parsePath, encodePath, buildRemfsDir, getMime } = require('.
 const { handleUpload } = require('./upload.js');
 const { handleDelete } = require('./delete.js');
 const { handleConcat } = require('./concat.js');
+const { ByteCounterStream } = require('./byte_counter.js');
 
 
 async function createHandler(options) {
@@ -28,8 +29,6 @@ async function createHandler(options) {
 
   const listeners = {};
   const emit = (fullPathStr, event) => {
-
-    console.log(fullPathStr, event);
 
     let pathStr = fullPathStr;
     let path = parsePath(pathStr);
@@ -141,6 +140,7 @@ async function createHandler(options) {
         callback,
       });
 
+      // TODO: clean up old listeners
       console.log(listeners);
     }
     else if (req.method === 'GET' || req.method === 'HEAD' ||
@@ -178,7 +178,6 @@ async function createHandler(options) {
       // create directory when request path ends in '/', otherwise upload file
       if (reqPath.endsWith('/')) {
         const fsPath = fsRoot + reqPath;
-        console.log(fsPath);
 
         try {
           await fs.promises.mkdir(fsPath);
@@ -195,7 +194,7 @@ async function createHandler(options) {
         res.end();
       }
       else {
-        await handleUpload(req, res, fsRoot, reqPath, pauth);
+        await handleUpload(req, res, fsRoot, reqPath, pauth, emit);
       }
     }
     else if (req.method === 'DELETE') {
