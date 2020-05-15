@@ -35,7 +35,10 @@ async function createHandler(options) {
 
     event.path = fullPathStr;
 
-    while (path.length > 0) {
+    for (let i = path.length; i >= 0; i--) {
+
+      path = path.slice(0, i);
+      pathStr = encodePath(path);
 
       if (listeners[pathStr]) {
         for (const listener of listeners[pathStr]) {
@@ -44,9 +47,6 @@ async function createHandler(options) {
           }
         }
       }
-
-      path.pop();
-      pathStr = encodePath(path);
     }
   };
 
@@ -83,19 +83,59 @@ async function createHandler(options) {
 
     if (params['remfs-method'] === 'remote-download') {
 
-      if (perms.canWrite(reqPath)) {
+      const remoteUrl = url.parse(decodeURIComponent(params.url));
+      const remotePath = parsePath(remoteUrl.pathname)
+      const filename = decodeURIComponent(remotePath[remotePath.length - 1]);
+      const dstPath = encodePath([...parsePath(reqPath), filename]);
 
-        const remoteUrl = url.parse(decodeURIComponent(params.url));
-        const remotePath = parsePath(remoteUrl.pathname)
-        const filename = decodeURIComponent(remotePath[remotePath.length - 1]);
+      if (perms.canWrite(dstPath)) {
 
         const fsPath = fsRoot + reqPath + '/' + filename;
 
         http.get(params['url'], (getRes) => {
+
+          emit(dstPath, {
+            type: 'start',
+            remfs: {
+              size: 0,
+            },
+          });
+
+          // emit updates every 10MB
+          const updateByteCount = 10*1024*1024;
+          let count = 0;
+          const byteCounter = new ByteCounterStream(updateByteCount, (n) => {
+            count += n;
+            emit(dstPath, {
+              type: 'progress',
+              remfs: {
+                size: count,
+              },
+            });
+          });
+
           const stream = fs.createWriteStream(fsPath);
-          getRes.pipe(stream);
-          getRes.on('end', () => {
+          getRes
+            .pipe(byteCounter)
+            .pipe(stream);
+
+          getRes.on('end', async () => {
             res.end();
+
+            let stats;
+            try {
+              stats = await fs.promises.stat(fsPath);
+            }
+            catch (e) {
+              console.error("remote-downalod", e);
+            }
+
+            emit(dstPath, {
+              type: 'complete',
+              remfs: {
+                size: stats.size,
+              },
+            });
           });
         });
       }

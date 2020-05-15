@@ -52,6 +52,13 @@ async function handleUpload(req, res, fsRoot, reqPath, pauth, emit) {
     });
   });
 
+  emit(reqPath, {
+    type: 'start',
+    remfs: {
+      size: 0,
+    },
+  });
+
   req
     .pipe(byteCounter)
     .pipe(stream);
@@ -62,6 +69,13 @@ async function handleUpload(req, res, fsRoot, reqPath, pauth, emit) {
 
     const remfs = await buildRemfsDir(remfsPath);
     res.write(JSON.stringify(remfs.children[filename], null, 2));
+
+    emit(reqPath, {
+      type: 'complete',
+      remfs: {
+        size: remfs.children[filename].size,
+      },
+    });
 
     res.end();
   });

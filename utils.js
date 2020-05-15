@@ -43,17 +43,25 @@ function parseCookies(cookie) {
   return obj;
 }
 
-function parsePath(path) {
-  if (path.endsWith('/')) {
-    path = path.slice(0, path.length - 1);
-  }
-
-  if (path === '' || path === '/') {
+function parsePath(pathStr) {
+  if (pathStr === '/') {
     return [];
   }
-
-  return path.split('/');
+  return pathStr.split('/').slice(1);
 }
+// TODO: keep an eye on the new version above and make sure we haven't
+// broken anything
+//function parsePath(path) {
+//  if (path.endsWith('/')) {
+//    path = path.slice(0, path.length - 1);
+//  }
+//
+//  if (path === '' || path === '/') {
+//    return [];
+//  }
+//
+//  return path.split('/');
+//}
 
 
 function encodePath(parts) {
@@ -61,8 +69,6 @@ function encodePath(parts) {
 }
 
 async function buildRemfsDir(fsPath) {
-
-  console.log(fsPath);
 
   let filenames;
   try {
