@@ -1,6 +1,6 @@
 {
   "name": "remfs-server",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -12,6 +12,6 @@
   "author": "Anders Pitman",
   "license": "MIT",
   "dependencies": {
-    "pauth": "^0.1.0"
+    "pauth": "^0.2.0"
   }
 }
