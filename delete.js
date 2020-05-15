@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { parseToken, parsePath, encodePath } = require('./utils.js');
 
-async function handleDelete(req, res, fsRoot, reqPath, pauth) {
+async function handleDelete(req, res, fsRoot, reqPath, pauth, emit) {
   const tokenName = 'remfs-token';
   const token = parseToken(req, tokenName);
 
@@ -35,6 +35,9 @@ async function handleDelete(req, res, fsRoot, reqPath, pauth) {
   if (stats.isFile()) {
     try {
       await fs.promises.unlink(fsPath);
+      emit(reqPath, {
+        type: 'delete',
+      });
     }
     catch (e) {
       res.statusCode = 400;
@@ -46,6 +49,9 @@ async function handleDelete(req, res, fsRoot, reqPath, pauth) {
   else {
     try {
       await fs.promises.rmdir(fsPath, { recursive: true });
+      emit(reqPath, {
+        type: 'delete',
+      });
     }
     catch (e) {
       res.statusCode = 400;

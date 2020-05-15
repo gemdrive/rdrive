@@ -26,6 +26,31 @@ async function createHandler(options) {
 
   const pauth = await new PauthBuilder().build();
 
+  const listeners = {};
+  const emit = (fullPathStr, event) => {
+
+    console.log(fullPathStr, event);
+
+    let pathStr = fullPathStr;
+    let path = parsePath(pathStr);
+
+    event.path = fullPathStr;
+
+    while (path.length > 0) {
+
+      if (listeners[pathStr]) {
+        for (const listener of listeners[pathStr]) {
+          if (pauth.canRead(listener.token, fullPathStr)) {
+            listener.callback(event);
+          }
+        }
+      }
+
+      path.pop();
+      pathStr = encodePath(path);
+    }
+  };
+
   return async function(req, res) {
     const u = url.parse(req.url); 
     const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
@@ -88,7 +113,37 @@ async function createHandler(options) {
       res.setHeader('Content-Disposition', 'attachment');
     } 
 
-    if (req.method === 'GET' || req.method === 'HEAD' ||
+    if (params.events === 'true') {
+
+      if (!perms.canRead(reqPath)) {
+        res.statusCode = 403;
+        res.write("Unauthorized");
+        res.end();
+        return;
+      }
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      // this header is for disabling nginx buffering so SSE messages are sent
+      // right away.
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      const callback = (event) => {
+        const payload = JSON.stringify(event);
+        res.write(`event: update\ndata: ${payload}\n\n`);
+      };
+
+      if (!listeners[reqPath]) {
+        listeners[reqPath] = [];
+      }
+
+      listeners[reqPath].push({
+        token,
+        callback,
+      });
+
+      console.log(listeners);
+    }
+    else if (req.method === 'GET' || req.method === 'HEAD' ||
         (req.method === 'POST' && req.headers['content-type'] === 'text/plain')) {
 
       if (req.method === 'POST') {
@@ -127,8 +182,12 @@ async function createHandler(options) {
 
         try {
           await fs.promises.mkdir(fsPath);
+          emit(reqPath, {
+            type: 'create',
+          });
         }
         catch (e) {
+          console.error(e);
           res.statusCode = 400;
           res.write(e.toString());
         }
@@ -140,7 +199,7 @@ async function createHandler(options) {
       }
     }
     else if (req.method === 'DELETE') {
-      await handleDelete(req, res, fsRoot, reqPath, pauth);
+      await handleDelete(req, res, fsRoot, reqPath, pauth, emit);
     }
   };
 }
