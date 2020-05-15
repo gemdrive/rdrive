@@ -120,7 +120,24 @@ async function createHandler(options) {
       }
     }
     else if (req.method === 'PUT') {
-      await handleUpload(req, res, fsRoot, reqPath, pauth);
+      // create directory when request path ends in '/', otherwise upload file
+      if (reqPath.endsWith('/')) {
+        const fsPath = fsRoot + reqPath;
+        console.log(fsPath);
+
+        try {
+          await fs.promises.mkdir(fsPath);
+        }
+        catch (e) {
+          res.statusCode = 400;
+          res.write(e.toString());
+        }
+
+        res.end();
+      }
+      else {
+        await handleUpload(req, res, fsRoot, reqPath, pauth);
+      }
     }
     else if (req.method === 'DELETE') {
       await handleDelete(req, res, fsRoot, reqPath, pauth);
