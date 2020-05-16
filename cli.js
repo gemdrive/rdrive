@@ -12,18 +12,30 @@ const args = process.argv
       return args;
   }, {});
 
-//if (!args['--dir']) {
-//  console.log("Usage: remfs-server [--port=PORT] [--dir=DIR]");
-//  process.exit(1);
-//}
-//
 
-const port = args['--port'] ? args['--port'] : 9001;
+const port = args['--port'] ? args['--port'] : 3838;
 const dir = args['--dir'] ? args['--dir'] : './';
 const rootPath = args['--root-path'] ? args['--root-path'] : '';
+const securityMode = args['--security-mode'] ? args['--security-mode'] : '';
+
+// Listen on all interfaces by default (0.0.0.0), but if securityMode is
+// 'local' only bind to localhost unless overridden.
+let host;
+if (args['--host']) {
+  host = args['--host'];
+}
+else {
+  host = securityMode === 'local' ? '127.0.0.1' : '0.0.0.0';
+}
+
 
 (async () => {
-  const remfsHandler = await createHandler({ rootPath, dir });
+  const remfsHandler = await createHandler({ rootPath, dir, securityMode });
   const httpServer = http.createServer(remfsHandler);
-  httpServer.listen(port);
+  if (securityMode === 'local') {
+    httpServer.listen(port, host);
+  }
+  else {
+    httpServer.listen(port);
+  }
 })();

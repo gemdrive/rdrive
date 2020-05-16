@@ -25,6 +25,11 @@ async function createHandler(options) {
     fsRoot = options.dir;
   }
 
+  let securityMode;
+  if (options && options.securityMode) {
+    securityMode = options.securityMode;
+  }
+
   const pauth = await new PauthBuilder().build();
 
   const listeners = {};
