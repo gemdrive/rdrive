@@ -175,7 +175,21 @@ class Pauth {
         this._tokens[authTokenKey] = authToken;
         this._persistTokens();
 
-        const successUrl = params.redirect_uri + '&code=' + authTokenKey;
+        const redirectUriObj = url.parse(decodeURIComponent(params.redirect_uri)); 
+
+        let successUrl;
+        if (redirectUriObj.query) {
+          // append code to existing parameters
+          successUrl = params.redirect_uri + '&code=' + authTokenKey;
+        }
+        else {
+          // code is first parameter
+          successUrl = params.redirect_uri + '?code=' + authTokenKey;
+        }
+
+        if (params.state) {
+          successUrl += '&state=' + params.state;
+        }
 
         const html = `
           <h1>Hi there</h1>
