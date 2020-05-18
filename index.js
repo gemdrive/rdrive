@@ -109,7 +109,6 @@ class Pauth {
         }
       }
       catch (e) {
-        console.log("eh?");
         console.error(e);
         res.statusCode = 400;
         res.write("Authorization failed");
@@ -157,57 +156,23 @@ class Pauth {
           return;
         }
 
-        // TODO: what if error is the first param?
-        const errorUrl = params.redirect_uri + '&error=access_denied';
-
-        const perms = parsePermsFromScope(params.scope);
-
-        const accessTokenKey = this.delegate(token, { perms });
-        if (!accessTokenKey) {
-          res.writeHead(302, {
-            'Location': errorUrl,
-          });
-          res.end();
-          return;
-        }
-
-        const authToken = {
-          accessTokenKey,
-        };
-
-        const authTokenKey = generateKey();
-        this._tokens[authTokenKey] = authToken;
-        this._persistTokens();
-
-        const redirectUriObj = url.parse(decodeURIComponent(params.redirect_uri)); 
-
-        let successUrl;
-        if (redirectUriObj.query) {
-          // append code to existing parameters
-          successUrl = params.redirect_uri + '&code=' + authTokenKey;
-        }
-        else {
-          // code is first parameter
-          successUrl = params.redirect_uri + '?code=' + authTokenKey;
-        }
-
-        if (params.state) {
-          successUrl += '&state=' + params.state;
-        }
-
-        const html = `
-          <h1>Hi there</h1>
-          <a href="${successUrl}">Authorize</a>
-          <a href="${errorUrl}">Deny</a>
-        `;
+        filePath = path.join(__dirname, 'authorize.html');
+        const stat = await fs.promises.stat(filePath);
 
         res.writeHead(200, {
           'Content-Type': 'text/html',
-          'Content-Length': html.length,
+          'Content-Length': stat.size,
         });
 
-        res.write(html);
+        const f = fs.createReadStream(filePath);
+        f.pipe(res);
       }
+    }
+    else if (method === 'delegate-auth-code' && req.method === 'POST') {
+      const perms = parsePermsFromScope(params.scope);
+      const authCode = this.delegateAuthCode(token, { perms });
+      res.write(authCode);
+      res.end();
     }
     else if (method === 'token') {
 
@@ -311,6 +276,25 @@ class Pauth {
     //}
 
     return tokenKey;
+  }
+
+  delegateAuthCode(tokenKey, request) {
+
+    const accessTokenKey = this.delegate(tokenKey, request);
+
+    if (!accessTokenKey) {
+      throw new Error("accessTokenKey");
+    }
+
+    const authToken = {
+      accessTokenKey,
+    };
+
+    const authCode = generateKey();
+    this._tokens[authCode] = authToken;
+    this._persistTokens();
+
+    return authCode;
   }
 
   delegate(tokenKey, request) {

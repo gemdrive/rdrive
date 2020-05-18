@@ -1,9 +1,170 @@
 <!doctype html>
 <html>
   <head>
+    <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
+
+  <style>
+
+    html, body, main {
+      height: 100%;
+    }
+
+    main {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .content {
+      padding: 20px;
+      border: 1px solid #ccc;
+    }
+
+    .perm-list-item {
+      margin: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+
+    .button-authorize,
+    .button-deny {
+      color: white;
+      border-radius: 4px;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    }
+
+    .button-authorize{
+        background: rgb(28, 184, 65);
+        /* this is a green */
+    }
+
+    .button-deny {
+        background: rgb(202, 60, 60);
+        /* this is a maroon */
+    }
+
+    .button-row {
+      display: flex;
+      justify-content: center;
+    }
+
+    .button-row__button {
+      margin: 10px;
+    }
+
+    #client-id-container {
+      font-weight: bold;
+    }
+
+  </style>
   </head>
 
   <body>
-    <h1>Authorize</h1>
+    <main>
+      <div class='content'>
+        <h1>Authorize</h1>
+        <div>
+          <span id='client-id-container'></span>
+          wants to access the following data:
+        </div>
+        <div class='perm-list'>
+        </div>
+
+        <div class='button-row'>
+          <button class='pure-button button-authorize button-row__button'>Authorize</button>
+          <button class='pure-button button-deny button-row__button'>Deny</button>
+        </div>
+      </div>
+    </main>
+
+    <script>
+
+      const permListEl = document.querySelector('.perm-list');
+      const clientIdEl = document.querySelector('#client-id-container');
+      const authorizeBtnEl = document.querySelector('.button-authorize');
+
+      const urlParams = new URLSearchParams(window.location.search);
+
+      const scope = urlParams.get('scope');
+      const clientId = urlParams.get('client_id');
+
+      clientIdEl.innerText = clientId;
+
+      const allPerms = parsePermsFromScope(scope);
+
+      for (const path in allPerms) {
+        const perms = allPerms[path];
+
+        const item = PermListItem(path, perms);
+        permListEl.appendChild(item);
+      }
+
+      authorizeBtnEl.addEventListener('click', (e) => {
+
+        urlParams.set('pauth-method', 'delegate-auth-code');
+
+        //const authUrl = window.location.pathname + '?' + decodeURIComponent(urlParams.toString());
+        const authUrl = window.location.pathname + '?' + urlParams.toString();
+
+        fetch(authUrl, {
+          method: 'POST',
+        })
+        .then(response => {
+          return response.text();
+        })
+        .then(authCode => {
+          const redirectUri = urlParams.get('redirect_uri');
+          console.log(redirectUri);
+          const redirUrlObj = new URL(redirectUri);
+          console.log(redirUrlObj);
+          const redirParams = new URLSearchParams(redirUrlObj.search);
+          redirParams.set('code', authCode);
+          redirParams.set('state', urlParams.get('state'));
+
+          const redirUrl = redirUrlObj.origin + redirUrlObj.pathname + '?' + decodeURIComponent(redirParams.toString());
+          window.location.href = redirUrl;
+        })
+        .catch(e => {
+          console.error(e);
+        });
+      });
+
+
+      function parsePermsFromScope(scopes) {
+        const perms = {};
+
+        for (const scope of scopes.split(' ')) {
+          const parts = scope.split(':');
+          const path = parts[0];
+          const perm = parts[1];
+          perms[path] = {
+            [perm]: true
+          };
+        }
+
+        return perms;
+      }
+
+      function PermListItem(path, perms) {
+        const dom = document.createElement('div');
+        dom.classList.add('perm-list-item');
+
+        const labelEl = document.createElement('div');
+        labelEl.innerText = 'Path: ' + path;
+        dom.appendChild(labelEl);
+
+        const permEl = document.createElement('div');
+        dom.appendChild(permEl);
+
+        if (perms.write === true) {
+          permEl.innerText = "Permissions: " + "read/write";
+        }
+        else if (perms.read === true) {
+          permEl.innerText = "Permissions: " + "read";
+        }
+
+        return dom;
+      }
+    </script>
   </body>
 </html>
