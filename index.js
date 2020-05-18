@@ -9,7 +9,7 @@ const { parseToken, parsePath, encodePath, buildRemfsDir, getMime } = require('.
 const { handleUpload } = require('./upload.js');
 const { handleDelete } = require('./delete.js');
 const { handleConcat } = require('./concat.js');
-const { ByteCounterStream } = require('./byte_counter.js');
+const { handleRemoteDownload } = require('./remote_download.js');
 
 
 async function createHandler(options) {
@@ -87,69 +87,7 @@ async function createHandler(options) {
     } 
 
     if (params['remfs-method'] === 'remote-download') {
-
-      const remoteUrl = url.parse(decodeURIComponent(params.url));
-      const remotePath = parsePath(remoteUrl.pathname)
-      const filename = decodeURIComponent(remotePath[remotePath.length - 1]);
-      const dstPath = encodePath([...parsePath(reqPath), filename]);
-
-      if (perms.canWrite(dstPath)) {
-
-        const fsPath = fsRoot + reqPath + '/' + filename;
-
-        http.get(params['url'], (getRes) => {
-
-          emit(dstPath, {
-            type: 'start',
-            remfs: {
-              size: 0,
-            },
-          });
-
-          // emit updates every 10MB
-          const updateByteCount = 10*1024*1024;
-          let count = 0;
-          const byteCounter = new ByteCounterStream(updateByteCount, (n) => {
-            count += n;
-            emit(dstPath, {
-              type: 'progress',
-              remfs: {
-                size: count,
-              },
-            });
-          });
-
-          const stream = fs.createWriteStream(fsPath);
-          getRes
-            .pipe(byteCounter)
-            .pipe(stream);
-
-          getRes.on('end', async () => {
-            res.end();
-
-            let stats;
-            try {
-              stats = await fs.promises.stat(fsPath);
-            }
-            catch (e) {
-              console.error("remote-downalod", e);
-            }
-
-            emit(dstPath, {
-              type: 'complete',
-              remfs: {
-                size: stats.size,
-              },
-            });
-          });
-        });
-      }
-      else {
-        res.statusCode = 403;
-        res.write("Unauthorized");
-        res.end();
-      }
-
+      await handleRemoteDownload(req, res, fsRoot, reqPath, pauth, emit);
       return;
     }
 

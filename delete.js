@@ -3,9 +3,8 @@ const path = require('path');
 const { parseToken, parsePath, encodePath } = require('./utils.js');
 
 async function handleDelete(req, res, fsRoot, reqPath, pauth, emit) {
-  const tokenName = 'remfs-token';
-  const token = parseToken(req, tokenName);
 
+  const token = parseToken(req);
   const perms = await pauth.getPerms(token);
 
   const pathParts = parsePath(reqPath);
