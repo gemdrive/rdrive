@@ -109,8 +109,12 @@ class Pauth {
         }
       }
       catch (e) {
+        console.log("eh?");
         console.error(e);
+        res.statusCode = 400;
         res.write("Authorization failed");
+        res.end();
+        return;
       }
 
       res.end();
@@ -210,7 +214,7 @@ class Pauth {
       const grantType = params['grant_type'];
 
       if (grantType !== 'authorization_code') {
-        res.status = 400;
+        res.statusCode = 400;
         res.write("Invalid grant_type. Must be authorization_code");
         res.end();
         return;
@@ -224,7 +228,7 @@ class Pauth {
         delete this._tokens[authCode];
       }
       else {
-        res.status = 400;
+        res.statusCode = 400;
       }
 
       res.end();
