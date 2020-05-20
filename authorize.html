@@ -23,26 +23,31 @@
       border: 1px solid #ccc;
     }
 
+    .header-text {
+      font-size: 18px;
+      margin-bottom: 15px;
+    }
+
     .perm-list-item {
       margin: 10px;
       padding: 10px;
       border: 1px solid #ccc;
     }
 
-    .button-authorize,
-    .button-deny,
+    .button-confirm,
+    .button-cancel,
     .button-edit {
       color: white;
       border-radius: 4px;
       text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
     }
 
-    .button-authorize{
+    .button-confirm{
       background: rgb(28, 184, 65);
       /* this is a green */
     }
 
-    .button-deny {
+    .button-cancel {
       background: rgb(202, 60, 60);
       /* this is a maroon */
     }
@@ -78,32 +83,84 @@
       font-family: Courier New;
     }
 
+    .remfs-dialog {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1;
+      background-color: #000;
+      width: 300px;
+      max-width: 100%;
+      height: 400px;
+      max-height: 100%;
+      border: 1px solid #ccc;
+    }
+
+    .remfs-dialog__content {
+
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+
+      /*padding: 20px 50px 20px 20px;*/
+
+      overflow: auto;
+
+      background-color: #fff;
+    }
+
+    .remfs-picker {
+      overflow-x: hidden;
+    }
+    .remfs-picker__list-item {
+      font-size: 22px;
+    }
+    .remfs-picker__list-item:hover {
+      background-color: #ccc;
+    }
+    .remfs-picker__list-item--selected {
+      background-color: #ccc;
+    }
+    .remfs-picker__button-row {
+      display: flex;
+    }
+
+    .bottom {
+      position: absolute;
+      bottom: 0px;
+    }
+
   </style>
   </head>
 
   <body>
     <main>
       <div class='content'>
-        <h1>Authorize</h1>
-        <div>
+        <div class='header-text'>
           <span id='client-id-container'></span>
-          wants to access the following data:
+          wants to access the following:
         </div>
-        <div class='perm-list'>
-        </div>
+        <div class='perm-list'></div>
 
         <div class='button-row'>
-          <button class='pure-button button-authorize button-row__button'>Authorize</button>
-          <button class='pure-button button-deny button-row__button'>Deny</button>
+          <button class='pure-button button-confirm button-row__button'>Approve</button>
+          <button class='pure-button button-cancel button-row__button'>Deny</button>
         </div>
+
       </div>
+
+      <div class='dialog-container'></div>
     </main>
 
     <script>
 
       const permListEl = document.querySelector('.perm-list');
       const clientIdEl = document.querySelector('#client-id-container');
-      const authorizeBtnEl = document.querySelector('.button-authorize');
+      const authorizeBtnEl = document.querySelector('.button-confirm');
+      const dialogContainer = document.querySelector('.dialog-container');
 
       const urlParams = new URLSearchParams(window.location.search);
 
@@ -114,22 +171,59 @@
 
       const allPerms = parsePermsFromScope(scope);
 
-      for (const path in allPerms) {
+      for (let path in allPerms) {
         const perms = allPerms[path];
 
-        const item = PermListItem(path, perms);
-        item.addEventListener('perms-changed', (e) => {
+        const item = PermListItem(path, allPerms);
+        permListEl.appendChild(item.dom);
+
+        item.dom.addEventListener('perms-changed', (e) => {
           const { path, perms } = e.detail;
           allPerms[path] = perms;
           const scope = encodeScopeFromPerms(allPerms);
           urlParams.set('scope', scope);
-
-          console.log(urlParams.get('scope'));
-          console.log(decodeURIComponent(urlParams.toString()));
           history.pushState(null, '', window.location.pathname + '?' + decodeURIComponent(urlParams.toString()));
         });
 
-        permListEl.appendChild(item);
+        item.dom.addEventListener('path-change-click', (e) => {
+          const picker = Picker();
+          const dialog = Dialog(picker);
+
+          picker.addEventListener('picker-select', (e) => {
+            const newPath = e.detail.path;
+
+            if (newPath === path) {
+              alert("Path must be different");
+              return;
+            }
+
+            killDialog();
+
+            allPerms[newPath] = allPerms[path];
+            delete allPerms[path];
+            path = newPath;
+
+            item.onPathChange(newPath);
+
+            const scope = encodeScopeFromPerms(allPerms);
+            urlParams.set('scope', scope);
+            history.pushState(null, '', window.location.pathname + '?' + decodeURIComponent(urlParams.toString()));
+          });
+
+          picker.addEventListener('picker-cancel', () => {
+            killDialog();
+          });
+
+          killDialog();
+          dialogContainer.appendChild(dialog);
+
+          function killDialog() {
+            if (dialogContainer.firstChild) {
+              dialogContainer.removeChild(dialogContainer.firstChild);
+            }
+          }
+        });
+
       }
 
       authorizeBtnEl.addEventListener('click', (e) => {
@@ -147,9 +241,7 @@
         })
         .then(authCode => {
           const redirectUri = urlParams.get('redirect_uri');
-          console.log(redirectUri);
           const redirUrlObj = new URL(redirectUri);
-          console.log(redirUrlObj);
           const redirParams = new URLSearchParams(redirUrlObj.search);
           redirParams.set('code', authCode);
           redirParams.set('state', urlParams.get('state'));
@@ -214,10 +306,19 @@
         pathEl.innerText = path;
         pathContainerEl.appendChild(pathEl);
 
-        //const editBtnEl = document.createElement('button');
-        //pathContainerEl.appendChild(editBtnEl);
-        //editBtnEl.classList.add('button-edit', 'pure-button', 'button-row__button', 'button-small');
-        //editBtnEl.innerText = "Change Path";
+        const editBtnEl = document.createElement('button');
+        pathContainerEl.appendChild(editBtnEl);
+        editBtnEl.classList.add('button-edit', 'pure-button', 'button-row__button', 'button-small');
+        editBtnEl.innerText = "Change Path";
+
+        editBtnEl.addEventListener('click', (e) => {
+          dom.dispatchEvent(new CustomEvent('path-change-click', {
+            bubbles: true,
+            detail: {
+              path,
+            },
+          }));
+        });
 
         //const permEl = document.createElement('span');
         //dom.appendChild(permEl);
@@ -243,12 +344,11 @@
         permsEl.appendChild(writeLabelEl);
         writeLabelEl.innerText = " Write";
 
-        if (perms.write === true) {
+        if (perms[path].write === true) {
           writeCheckEl.setAttribute('checked', true);
         }
 
         writeCheckEl.addEventListener('change', (e) => {
-          console.log(e.target.checked);
 
           dom.dispatchEvent(new CustomEvent('perms-changed', {
             bubbles: true,
@@ -261,8 +361,198 @@
           }));
         });
 
+        function onPathChange(newPath) {
+          path = newPath;
+          pathEl.innerText = path;
+        }
+
+        return {
+          dom,
+          onPathChange,
+        };
+      }
+
+      function Dialog(child) {
+        const dom = document.createElement('div');
+        dom.classList.add('remfs-dialog');
+
+        const content = document.createElement('div');
+        dom.appendChild(content);
+        content.classList.add('remfs-dialog__content');
+
+        content.appendChild(child);
+
         return dom;
       }
+
+      function Picker() {
+        const dom = document.createElement('div');
+        dom.classList.add('remfs-picker');
+
+        const listEl = document.createElement('div');
+        dom.appendChild(listEl);
+
+        const btnRowEl = document.createElement('div');
+        btnRowEl.classList.add('button-row', 'bottom');
+        dom.appendChild(btnRowEl);
+
+        const selectBtnEl = document.createElement('button');
+        selectBtnEl.classList.add('button-confirm', 'pure-button', 'button-row__button');
+        selectBtnEl.innerText = "Select";
+        btnRowEl.appendChild(selectBtnEl);
+        selectBtnEl.addEventListener('click', (e) => {
+          dom.dispatchEvent(new CustomEvent('picker-select', {
+            bubbles: true,
+            detail: {
+              path: selectedFile ? selectedFile : curPath,
+            }
+          }));
+        });
+
+        const cancelBtnEl = document.createElement('button');
+        cancelBtnEl.classList.add('button-cancel', 'pure-button', 'button-row__button');
+        cancelBtnEl.innerText = "Cancel";
+        btnRowEl.appendChild(cancelBtnEl);
+        cancelBtnEl.addEventListener('click', (e) => {
+          dom.dispatchEvent(new CustomEvent('picker-cancel', {
+            bubbles: true,
+          }));
+        });
+
+        let curPath;
+        let selectedFile = null;
+        navigate('/');
+
+        function navigate(path) {
+
+          selectedFile = null;
+
+          while (listEl.firstChild) {
+            listEl.removeChild(listEl.firstChild);
+          }
+
+          fetch(path + 'remfs.json')
+          .then(response => {
+            return response.json();
+          })
+          .then(remfs => {
+            if (path !== '/') {
+              const goParent = Item('..', { type: 'dir' });
+              listEl.appendChild(goParent.dom);
+              goParent.dom.addEventListener('click', (e) => {
+                const parts = path.split('/');
+                const parentPath = parts.slice(0, parts.length - 2).join('/') + '/';
+                navigate(parentPath);
+              });
+            }
+
+            const itemList = ItemList(remfs);
+            listEl.appendChild(itemList.dom);
+
+            itemList.dom.addEventListener('item-selected', (e) => {
+
+              e.stopPropagation();
+
+              const { filename, remfs } = e.detail;
+
+              if (remfs.type === 'dir') {
+                navigate(path + filename + '/');
+              }
+              else {
+                selectedFile = path + filename;
+              }
+            });
+          })
+          .catch(e => {
+            console.error(e);
+          });
+
+          curPath = path;
+        }
+
+        return dom;
+      }
+
+      function ItemList(remfs) { 
+        const dom = document.createElement('div');
+
+        const children = {};
+        for (const filename in remfs.children) {
+          const item = Item(filename, remfs.children[filename]);
+          children[filename] = item;
+          dom.appendChild(item.dom);
+        }
+
+        let curSelected;
+        
+        dom.addEventListener('item-selected', (e) => {
+          const { filename, remfs } = e.detail;
+
+          if (remfs.type !== 'file') {
+            return;
+          }
+
+          let selected;
+          if (curSelected === filename) {
+            selected = false;
+            curSelected = null;
+          }
+          else {
+            selected = true;
+            curSelected = filename;
+          }
+
+          for (const key in children) {
+            if (filename === key) {
+              children[key].onSelectedChange(selected);
+            }
+            else {
+              children[key].onSelectedChange(false);
+            }
+          }
+        });
+
+        function onItemSelectedChange(name, selected) {
+        }
+
+        return {
+          dom,
+          onItemSelectedChange,
+        };
+      }
+
+      function Item(filename, remfs) {
+        const dom = document.createElement('div');
+        dom.innerText = filename;
+
+        dom.classList.add('remfs-picker__list-item');
+
+        dom.addEventListener('click', (e) => {
+          dom.dispatchEvent(new CustomEvent('item-selected', {
+            bubbles: true,
+            detail: {
+              filename,
+              remfs,
+            },
+          }));
+        });
+
+        function onSelectedChange(selected) {
+          console.log(selected, filename);
+          if (selected) {
+            dom.classList.add('remfs-picker__list-item--selected');
+          }
+          else {
+            dom.classList.remove('remfs-picker__list-item--selected');
+          }
+        }
+
+        return {
+          dom,
+          onSelectedChange,
+        };
+      }
+
     </script>
   </body>
 </html>
