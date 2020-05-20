@@ -115,11 +115,20 @@
     .remfs-picker {
       overflow-x: hidden;
     }
+    .remfs-picker__item-list {
+      padding: 10px;
+    }
     .remfs-picker__list-item {
       font-size: 22px;
+      overflow: hidden;
+      border-bottom: 1px solid black;
+    }
+    .remfs-picker__list-item-text {
+      width: 0px; /* this is a hack to keep it from wrapping to the next line */
+      display: inline-block;
     }
     .remfs-picker__list-item:hover {
-      background-color: #ccc;
+      background-color: #ddd;
     }
     .remfs-picker__list-item--selected {
       background-color: #ccc;
@@ -155,6 +164,7 @@
       <div class='dialog-container'></div>
     </main>
 
+    <script src="https://unpkg.com/ionicons@5.0.0/dist/ionicons.js"></script>
     <script>
 
       const permListEl = document.querySelector('.perm-list');
@@ -477,6 +487,7 @@
 
       function ItemList(remfs) { 
         const dom = document.createElement('div');
+        dom.classList.add('remfs-picker__item-list');
 
         const children = {};
         for (const filename in remfs.children) {
@@ -525,7 +536,21 @@
 
       function Item(filename, remfs) {
         const dom = document.createElement('div');
-        dom.innerText = filename;
+
+        const icon = document.createElement('ion-icon');
+
+        if (remfs.type === 'dir') {
+          icon.name = 'folder';
+        }
+        else {
+          icon.name = 'document';
+        }
+        dom.appendChild(icon);
+
+        const text = document.createElement('span');
+        text.classList.add('remfs-picker__list-item-text');
+        text.innerText = filename;
+        dom.appendChild(text);
 
         dom.classList.add('remfs-picker__list-item');
 
