@@ -274,7 +274,9 @@
         let scope = '';
 
         for (const path in perms) {
-          scope += path + ':';
+
+          const trimmedPath = path.length > 1 && path.endsWith('/') ? path.slice(0, path.length - 1) : path;
+          scope += trimmedPath + ':';
 
           if (perms[path].write === true) {
             scope += 'write';
