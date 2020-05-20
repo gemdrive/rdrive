@@ -30,25 +30,35 @@
     }
 
     .button-authorize,
-    .button-deny {
+    .button-deny,
+    .button-edit {
       color: white;
       border-radius: 4px;
       text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
     }
 
     .button-authorize{
-        background: rgb(28, 184, 65);
-        /* this is a green */
+      background: rgb(28, 184, 65);
+      /* this is a green */
     }
 
     .button-deny {
-        background: rgb(202, 60, 60);
-        /* this is a maroon */
+      background: rgb(202, 60, 60);
+      /* this is a maroon */
+    }
+
+    .button-edit {
+      background: rgb(66, 184, 221);
+      /* this is a light blue */
     }
 
     .button-row {
       display: flex;
       justify-content: center;
+    }
+
+    .button-small {
+      font-size: 72%;
     }
 
     .button-row__button {
@@ -57,6 +67,15 @@
 
     #client-id-container {
       font-weight: bold;
+    }
+
+    .perms-list {
+      list-style-type: none;
+    }
+
+    .path {
+      font-weight: bold;
+      font-family: Courier New;
     }
 
   </style>
@@ -99,6 +118,17 @@
         const perms = allPerms[path];
 
         const item = PermListItem(path, perms);
+        item.addEventListener('perms-changed', (e) => {
+          const { path, perms } = e.detail;
+          allPerms[path] = perms;
+          const scope = encodeScopeFromPerms(allPerms);
+          urlParams.set('scope', scope);
+
+          console.log(urlParams.get('scope'));
+          console.log(decodeURIComponent(urlParams.toString()));
+          history.pushState(null, '', window.location.pathname + '?' + decodeURIComponent(urlParams.toString()));
+        });
+
         permListEl.appendChild(item);
       }
 
@@ -148,23 +178,88 @@
         return perms;
       }
 
+      function encodeScopeFromPerms(perms) {
+        let scope = '';
+
+        for (const path in perms) {
+          scope += path + ':';
+
+          if (perms[path].write === true) {
+            scope += 'write';
+          }
+          else {
+            scope += 'read';
+          }
+
+          scope += ' ';
+        }
+
+        // remove trailing space
+        return scope.slice(0, scope.length - 1);
+      }
+
       function PermListItem(path, perms) {
         const dom = document.createElement('div');
         dom.classList.add('perm-list-item');
 
-        const labelEl = document.createElement('div');
-        labelEl.innerText = 'Path: ' + path;
-        dom.appendChild(labelEl);
+        const pathContainerEl = document.createElement('div');
+        dom.appendChild(pathContainerEl);
 
-        const permEl = document.createElement('div');
-        dom.appendChild(permEl);
+        //const pathLabelEl = document.createElement('span');
+        //pathContainerEl.appendChild(pathLabelEl);
+        //pathLabelEl.innerText = "Path:";
+
+        const pathEl = document.createElement('span');
+        pathEl.classList.add('path');
+        pathEl.innerText = path;
+        pathContainerEl.appendChild(pathEl);
+
+        //const editBtnEl = document.createElement('button');
+        //pathContainerEl.appendChild(editBtnEl);
+        //editBtnEl.classList.add('button-edit', 'pure-button', 'button-row__button', 'button-small');
+        //editBtnEl.innerText = "Change Path";
+
+        //const permEl = document.createElement('span');
+        //dom.appendChild(permEl);
+        //permEl.innerText = "Permissions:";
+
+        const permsEl = document.createElement('span');
+        dom.appendChild(permsEl);
+        permsEl.classList.add('perms-list');
+
+        const readCheckEl = document.createElement('input');
+        permsEl.appendChild(readCheckEl);
+        readCheckEl.setAttribute('type', 'checkbox');
+        readCheckEl.setAttribute('checked', true);
+        readCheckEl.setAttribute('disabled', true);
+        const readLabelEl = document.createElement('span');
+        permsEl.appendChild(readLabelEl);
+        readLabelEl.innerText = " Read ";
+
+        const writeCheckEl = document.createElement('input');
+        permsEl.appendChild(writeCheckEl);
+        writeCheckEl.setAttribute('type', 'checkbox');
+        const writeLabelEl = document.createElement('span');
+        permsEl.appendChild(writeLabelEl);
+        writeLabelEl.innerText = " Write";
 
         if (perms.write === true) {
-          permEl.innerText = "Permissions: " + "read/write";
+          writeCheckEl.setAttribute('checked', true);
         }
-        else if (perms.read === true) {
-          permEl.innerText = "Permissions: " + "read";
-        }
+
+        writeCheckEl.addEventListener('change', (e) => {
+          console.log(e.target.checked);
+
+          dom.dispatchEvent(new CustomEvent('perms-changed', {
+            bubbles: true,
+            detail: {
+              path,
+              perms: {
+                write: e.target.checked,
+              },
+            },
+          }));
+        });
 
         return dom;
       }
