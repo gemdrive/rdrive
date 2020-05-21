@@ -4,7 +4,7 @@ const url = require('url');
 const querystring = require('querystring');
 const http = require('https');
 const { renderHtmlDir } = require('./render_html_dir.js');
-const { PauthBuilder } = require('pauth');
+const { PauthBuilder } = require('./pauth.js');
 const { parseToken, parsePath, encodePath, buildRemfsDir, getMime } = require('./utils.js');
 const { handleUpload } = require('./upload.js');
 const { handleDelete } = require('./delete.js');
@@ -158,6 +158,14 @@ async function createHandler(options) {
       }
     }
     else if (req.method === 'PUT') {
+
+      if (!perms.canWrite(reqPath)) {
+        res.statusCode = 403;
+        res.write("Unauthorized");
+        res.end();
+        return;
+      }
+
       // create directory when request path ends in '/', otherwise upload file
       if (reqPath.endsWith('/')) {
         const fsPath = fsRoot + reqPath;
