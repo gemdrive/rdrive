@@ -115,6 +115,10 @@
     .remfs-picker {
       overflow-x: hidden;
     }
+    .remfs-picker__list-container {
+      height: 340px;
+      overflow-y: scroll;
+    }
     .remfs-picker__item-list {
       padding: 10px;
     }
@@ -402,10 +406,12 @@
         dom.classList.add('remfs-picker');
 
         const listEl = document.createElement('div');
+        listEl.classList.add('remfs-picker__list-container');
         dom.appendChild(listEl);
 
         const btnRowEl = document.createElement('div');
-        btnRowEl.classList.add('button-row', 'bottom');
+        //btnRowEl.classList.add('button-row', 'bottom');
+        btnRowEl.classList.add('button-row');
         dom.appendChild(btnRowEl);
 
         const selectBtnEl = document.createElement('button');
