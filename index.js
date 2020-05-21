@@ -301,27 +301,38 @@ class Pauth {
 
     const perms = request.perms;
 
-    for (let path in perms) {
+    // TODO: use same format for storing in DB and in code.
+    const tokenPerms = {};
 
-      path = decodeURIComponent(path);
+    for (let permParams of perms) {
+
+      const path = decodeURIComponent(permParams.path);
+
+      tokenPerms[path] = {};
 
       // TODO: implement _tokenCanRead etc here to be more efficient
-      if (perms[path].read === true) {
+      if (permParams.perm === 'read') {
         if (!this.canRead(tokenKey, path)) {
           return null;
         }
+
+        tokenPerms[path].read = true;
       }
 
-      if (perms[path].write === true) {
+      if (permParams.perm === 'write') {
         if (!this.canWrite(tokenKey, path)) {
           return null;
         }
+
+        tokenPerms[path].write = true;
       }
 
-      if (perms[path].manage === true) {
+      if (permParams.perm === 'manage') {
         if (!this.canManage(tokenKey, path)) {
           return null;
         }
+
+        tokenPerms[path].manage = true;
       }
     }
 
@@ -333,7 +344,7 @@ class Pauth {
 
     const token = {
       email: parentToken.email,
-      perms: request.perms,
+      perms: tokenPerms,
       createdAt: timestamp.toISOString(),
     };
 
@@ -721,21 +732,26 @@ async function parseBody(req) {
   });
 }
 
-function parsePermsFromScope(scopes) {
-  const perms = {};
+function parsePermsFromScope(scope) {
 
-  for (const scope of scopes.split(' ')) {
-    const parts = scope.split(':');
-    const path = parts[0];
-    const perm = parts[1];
-    perms[path] = {
-      [perm]: true
-    };
+  const allPerms = [];
+
+  const items = scope.split(' ');
+  for (const item of items) {
+    const perms = {};
+    const params = item.split(';');
+    for (const param of params) {
+      const parts = param.split('=');
+      const key = parts[0];
+      const value = parts[1];
+      perms[key] = value.replace(/\[\]/g, ' ');
+    }
+
+    allPerms.push(perms);
   }
 
-  return perms;
+  return allPerms;
 }
-
 
 module.exports = {
   PauthBuilder,

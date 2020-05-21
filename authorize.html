@@ -185,37 +185,38 @@
 
       const allPerms = parsePermsFromScope(scope);
 
-      for (let path in allPerms) {
-        const perms = allPerms[path];
+      for (let i = 0; i < allPerms.length; i++) {
 
-        const item = PermListItem(path, allPerms);
+        const permParams = allPerms[i];
+
+        const item = PermListItem(i, permParams);
         permListEl.appendChild(item.dom);
 
         item.dom.addEventListener('perms-changed', (e) => {
-          const { path, perms } = e.detail;
-          allPerms[path] = perms;
+          const { key, perm } = e.detail;
+          allPerms[key].perm = perm;
           const scope = encodeScopeFromPerms(allPerms);
           urlParams.set('scope', scope);
           history.pushState(null, '', window.location.pathname + '?' + decodeURIComponent(urlParams.toString()));
         });
 
         item.dom.addEventListener('path-change-click', (e) => {
-          const picker = Picker();
+
+          const permParams = allPerms[e.detail.key];
+          const picker = Picker(permParams.type);
           const dialog = Dialog(picker);
 
           picker.addEventListener('picker-select', (e) => {
             const newPath = e.detail.path;
 
-            if (newPath === path) {
-              alert("Path must be different");
+            if (newPath === permParams.path) {
+              alert("Path must be different than current path");
               return;
             }
 
             killDialog();
 
-            allPerms[newPath] = allPerms[path];
-            delete allPerms[path];
-            path = newPath;
+            permParams.path = newPath;
 
             item.onPathChange(newPath);
 
@@ -269,34 +270,38 @@
       });
 
 
-      function parsePermsFromScope(scopes) {
-        const perms = {};
+      function parsePermsFromScope(scope) {
 
-        for (const scope of scopes.split(' ')) {
-          const parts = scope.split(':');
-          const path = parts[0];
-          const perm = parts[1];
-          perms[path] = {
-            [perm]: true
-          };
+        const allPerms = [];
+
+        const items = scope.split(' ');
+        for (const item of items) {
+          const perms = {};
+          const params = item.split(';');
+          for (const param of params) {
+            const parts = param.split('=');
+            const key = parts[0];
+            const value = parts[1];
+            perms[key] = value.replace(/\[\]/g, ' ');
+          }
+
+          allPerms.push(perms);
         }
 
-        return perms;
+        return allPerms;
       }
 
       function encodeScopeFromPerms(perms) {
         let scope = '';
 
-        for (const path in perms) {
+        for (const permParams of perms) {
 
-          const trimmedPath = path.length > 1 && path.endsWith('/') ? path.slice(0, path.length - 1) : path;
-          scope += trimmedPath + ':';
+          scope += `type=${permParams.type};perm=${permParams.perm}`;
 
-          if (perms[path].write === true) {
-            scope += 'write';
-          }
-          else {
-            scope += 'read';
+          if (permParams.path) {
+            const path = permParams.path;
+            const trimmedPath = path.length > 1 && path.endsWith('/') ? path.slice(0, path.length - 1) : path;
+            scope += `;path=${trimmedPath.replace(/ /g, '[]')}`;
           }
 
           scope += ' ';
@@ -306,7 +311,8 @@
         return scope.slice(0, scope.length - 1);
       }
 
-      function PermListItem(path, perms) {
+
+      function PermListItem(key, permParams) {
         const dom = document.createElement('div');
         dom.classList.add('perm-list-item');
 
@@ -317,21 +323,35 @@
         //pathContainerEl.appendChild(pathLabelEl);
         //pathLabelEl.innerText = "Path:";
 
+        const itemTypeText = permParams.type === 'dir' ? "Directory" : "File";
+        const typeLabelEl = document.createElement('div');
+        pathContainerEl.appendChild(typeLabelEl);
+        typeLabelEl.innerText = itemTypeText;
+
         const pathEl = document.createElement('span');
         pathEl.classList.add('path');
-        pathEl.innerText = path;
         pathContainerEl.appendChild(pathEl);
+
+        if (permParams.path) {
+          pathEl.innerText = permParams.path;
+        }
 
         const editBtnEl = document.createElement('button');
         pathContainerEl.appendChild(editBtnEl);
         editBtnEl.classList.add('button-edit', 'pure-button', 'button-row__button', 'button-small');
-        editBtnEl.innerText = "Change Path";
+
+        if (permParams.path) {
+          editBtnEl.innerText = "Change " + itemTypeText;
+        }
+        else {
+          editBtnEl.innerText = "Select " + itemTypeText;
+        }
 
         editBtnEl.addEventListener('click', (e) => {
           dom.dispatchEvent(new CustomEvent('path-change-click', {
             bubbles: true,
             detail: {
-              path,
+              key,
             },
           }));
         });
@@ -360,7 +380,7 @@
         permsEl.appendChild(writeLabelEl);
         writeLabelEl.innerText = " Write";
 
-        if (perms[path].write === true) {
+        if (permParams.perm === 'write') {
           writeCheckEl.setAttribute('checked', true);
         }
 
@@ -369,17 +389,14 @@
           dom.dispatchEvent(new CustomEvent('perms-changed', {
             bubbles: true,
             detail: {
-              path,
-              perms: {
-                write: e.target.checked,
-              },
+              key,
+              perm: e.target.checked ? 'write' : 'read',
             },
           }));
         });
 
         function onPathChange(newPath) {
-          path = newPath;
-          pathEl.innerText = path;
+          pathEl.innerText = newPath;
         }
 
         return {
@@ -401,7 +418,8 @@
         return dom;
       }
 
-      function Picker() {
+      function Picker(type) {
+
         const dom = document.createElement('div');
         dom.classList.add('remfs-picker');
 
@@ -419,6 +437,12 @@
         selectBtnEl.innerText = "Select";
         btnRowEl.appendChild(selectBtnEl);
         selectBtnEl.addEventListener('click', (e) => {
+
+          if (selectedFile && type === 'dir' || !selectedFile && type === 'file') {
+            alert("Must select a " + (type === 'dir' ? "directory" : "file"));
+            return;
+          }
+
           dom.dispatchEvent(new CustomEvent('picker-select', {
             bubbles: true,
             detail: {
@@ -571,7 +595,6 @@
         });
 
         function onSelectedChange(selected) {
-          console.log(selected, filename);
           if (selected) {
             dom.classList.add('remfs-picker__list-item--selected');
           }
