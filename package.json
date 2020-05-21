@@ -2,7 +2,7 @@
   "name": "pauth",
   "version": "0.2.0",
   "description": "path-based authorization server",
-  "main": "index.js",
+  "main": "pauth.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
