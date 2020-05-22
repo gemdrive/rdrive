@@ -3,6 +3,7 @@ const path = require('path');
 const url = require('url');
 const querystring = require('querystring');
 const http = require('https');
+const sharp = require('sharp');
 const { renderHtmlDir } = require('./render_html_dir.js');
 const { PauthBuilder } = require('./pauth.js');
 const { parseToken, parsePath, encodePath, buildRemfsDir, getMime } = require('./utils.js');
@@ -152,6 +153,68 @@ async function createHandler(options) {
         const remfs = await buildRemfsDir(fsPath);
         res.write(JSON.stringify(remfs, null, 2));
         res.end();
+      }
+      else if (reqPath.startsWith('/.remfs/images')) {
+
+        const parts = parsePath(reqPath);
+        const size = parseInt(parts[2]);
+
+        if (size !== 32 && size !== 64 && size !== 128 && size !== 256 && 
+          size !== 512 && size !== 1024 && size !== 2048) {
+          res.statusCode = 404;
+          res.write("Not Found");
+          res.end();
+          return;
+        }
+
+        const srcPathStr = encodePath(parts.slice(3));
+        const srcFsPath = path.join(fsRoot, srcPathStr);
+
+        if (srcPathStr.includes('.remfs/images')) {
+          const stream = fs.createReadStream(srcFsPath);
+
+          stream.pipe(res);
+
+          stream.on('error', (e) => {
+            console.error(e);
+            res.statusCode = 404;
+            res.write("Not Found");
+            res.end();
+          });
+        }
+        else {
+          const thumbDir = path.join(fsRoot, encodePath(parts.slice(0, parts.length - 1)));
+          const thumbFsPath = path.join(fsRoot, reqPath);
+
+          const stream = fs.createReadStream(thumbFsPath)
+          stream.pipe(res);
+
+          stream.on('error', async (e) => {
+
+            try {
+              await fs.promises.stat(srcFsPath);
+              await fs.promises.mkdir(thumbDir, { recursive: true });
+
+              sharp(srcFsPath)
+                .resize(size, size, {
+                  fit: 'inside',
+                })
+                .toBuffer()
+                .then(async (data) => {
+                  res.write(data);
+                  await fs.promises.writeFile(thumbFsPath, data);
+                  res.end();
+                });
+            }
+            catch (e) {
+              console.error(e);
+              res.statusCode = 404;
+              res.write("Not Found");
+              res.end();
+              return;
+            }
+          });
+        }
       }
       else {
         serveItem(req, res, fsRoot, rootPath, reqPath); 
