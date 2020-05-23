@@ -3,6 +3,7 @@ const nodemailer = require("nodemailer");
 const url = require('url');
 const querystring = require('querystring');
 const path = require('path');
+const crypto = require('crypto');
 
 class PauthBuilder {
   async build() {
@@ -44,6 +45,7 @@ class Pauth {
     this._config = config;
     this._allPerms = allPerms;
     this._tokens = tokens;
+    this._persistTokens();
 
     this._pendingVerifications = {};
 
@@ -68,6 +70,7 @@ class Pauth {
           const expireTime = new Date(Date.parse(token.expiresAt));
           if (timestamp > expireTime) {
             delete this._tokens[key];
+            this._persistTokens();
           }
         }
       }
@@ -170,7 +173,7 @@ class Pauth {
     }
     else if (method === 'delegate-auth-code' && req.method === 'POST') {
       const perms = parsePermsFromScope(params.scope);
-      const authCode = this.delegateAuthCode(token, { perms });
+      const authCode = this.delegateAuthCode(token, params['code_challenge'], { perms });
       res.write(authCode);
       res.end();
     }
@@ -189,8 +192,16 @@ class Pauth {
       const authToken = this._tokens[authCode];
 
       if (authToken) {
-        res.write(authToken.accessTokenKey);
-        delete this._tokens[authCode];
+
+        if (params['code_verifier'] && await codeMatches(params['code_verifier'], authToken.codeChallenge)) {
+          res.write(authToken.accessTokenKey);
+          delete this._tokens[authCode];
+          this._persistTokens();
+        }
+        else {
+          res.statusCode = 400;
+          res.write("Nice try. We be PKCElated");
+        }
       }
       else {
         res.statusCode = 400;
@@ -278,7 +289,7 @@ class Pauth {
     return tokenKey;
   }
 
-  delegateAuthCode(tokenKey, request) {
+  delegateAuthCode(tokenKey, codeChallenge, request) {
 
     const accessTokenKey = this.delegate(tokenKey, request);
 
@@ -288,6 +299,7 @@ class Pauth {
 
     const authToken = {
       accessTokenKey,
+      codeChallenge,
     };
 
     const authCode = generateKey();
@@ -752,6 +764,18 @@ function parsePermsFromScope(scope) {
 
   return allPerms;
 }
+
+async function codeMatches(codeVerifier, codeChallenge) {
+
+  const base64Code = crypto
+    .createHash('sha256')
+    .update(codeVerifier)
+    .digest('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  return base64Code === codeChallenge;
+}
+
 
 module.exports = {
   PauthBuilder,
