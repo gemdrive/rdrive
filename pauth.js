@@ -173,38 +173,77 @@ class Pauth {
     }
     else if (method === 'delegate-auth-code' && req.method === 'POST') {
       const perms = parsePermsFromScope(params.scope);
-      const authCode = this.delegateAuthCode(token, params['code_challenge'], { perms });
+      const authCode = this.delegateAuthCode(
+        token, params['code_challenge'], params['client_id'],
+        params['redirect_uri'], { perms });
       res.write(authCode);
       res.end();
     }
     else if (method === 'token') {
 
+      const body = await parseBody(req);
+      const params = querystring.parse(body);
+
       const grantType = params['grant_type'];
 
-      if (grantType !== 'authorization_code') {
-        res.statusCode = 400;
-        res.write("Invalid grant_type. Must be authorization_code");
-        res.end();
-        return;
-      }
 
       const authCode = params['code'];
       const authToken = this._tokens[authCode];
 
-      if (authToken) {
-
-        if (params['code_verifier'] && await codeMatches(params['code_verifier'], authToken.codeChallenge)) {
-          res.write(authToken.accessTokenKey);
-          delete this._tokens[authCode];
-          this._persistTokens();
-        }
-        else {
-          res.statusCode = 400;
-          res.write("Nice try. We be PKCElated");
-        }
+      if (!authCode) {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.write(JSON.stringify({
+          error: "invalid_request",
+          error_description: "Missing code",
+        }));
+      }
+      else if (grantType !== 'authorization_code') {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.write(JSON.stringify({
+          error: "invalid_request",
+          error_description: "Invalid grant_type. Must be authorization_code",
+        }));
+      }
+      else if (!authToken) {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.write(JSON.stringify({
+          error: "invalid_grant",
+          error_description: "No auth token found. Maybe it expired",
+        }));
+      }
+      else if (!params['client_id'] || (params['client_id'] !== authToken.clientId)) {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.write(JSON.stringify({
+          error: "invalid_client",
+          error_description: "client_id doesn't match",
+        }));
+      }
+      else if (!params['redirect_uri'] || (params['redirect_uri'] !== authToken.redirectUri)) {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.write(JSON.stringify({
+          error: "invalid_grant",
+          error_description: "redirect_uri doesn't match",
+        }));
+      }
+      else if (!params['code_verifier'] || !await codeMatches(params['code_verifier'], authToken.codeChallenge)) {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.write(JSON.stringify({
+          error: "invalid_request",
+          error_description: "code_verifier doesn't match",
+        }));
       }
       else {
-        res.statusCode = 400;
+        res.write(JSON.stringify({
+          access_token: authToken.accessTokenKey,
+        }, null, 2));
+        delete this._tokens[authCode];
+        this._persistTokens();
       }
 
       res.end();
@@ -289,7 +328,7 @@ class Pauth {
     return tokenKey;
   }
 
-  delegateAuthCode(tokenKey, codeChallenge, request) {
+  delegateAuthCode(tokenKey, codeChallenge, clientId, redirectUri, request) {
 
     const accessTokenKey = this.delegate(tokenKey, request);
 
@@ -300,6 +339,8 @@ class Pauth {
     const authToken = {
       accessTokenKey,
       codeChallenge,
+      clientId,
+      redirectUri,
     };
 
     const authCode = generateKey();
@@ -656,12 +697,12 @@ class Pauth {
   }
 
   async _persistPerms() {
-    const permsJson = JSON.stringify(this._allPerms, null, 4);
+    const permsJson = JSON.stringify(this._allPerms, null, 2);
     await fs.promises.writeFile('pauth_perms.json', permsJson);
   }
 
   async _persistTokens() {
-    const tokensJson = JSON.stringify(this._tokens, null, 4);
+    const tokensJson = JSON.stringify(this._tokens, null, 2);
     await fs.promises.writeFile('pauth_tokens.json', tokensJson);
   }
 
