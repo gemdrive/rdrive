@@ -20,3 +20,5 @@
     caching when running apps like delver?
 * Implement domain/link map for routing different domain names
 * Fix HTML dir listings with whitespace in names
+* Properly handle permissions for /.remfs/images/. They should match the
+  stripped path.
