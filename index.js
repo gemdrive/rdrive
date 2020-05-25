@@ -12,6 +12,7 @@ const { handleDelete } = require('./delete.js');
 const { handleConcat } = require('./concat.js');
 const { handleRemoteDownload } = require('./remote_download.js');
 const { handleImage } = require('./images.js');
+const rclone = require('./rclone.js');
 
 
 async function createHandler(options) {
@@ -155,45 +156,31 @@ async function createHandler(options) {
       if (reqPath.endsWith('remfs.json')) {
 
         if (reqPath === '/remfs.json') {
-          const cmd = spawn('rclone', ['listremotes']);
-          let allData = '';
 
-          cmd.stdout.setEncoding('utf8');
+          const remotes = await rclone.listRemotes();
 
-          cmd.stdout.on('data', (data) => {
-            allData += data;
-          });
+          const remfs = {
+            type: 'dir',
+            size: 4096,
+            children: {},
+          };
 
-          cmd.stdout.on('end', () => {
-            const remotes = allData.split('\n')
-              .slice(0, -1)
-              .map(r => r.slice(0, -1));
-            console.log(remotes);
-
-            const remfs = {
+          for (const remote of remotes) {
+            remfs.children[remote] = {
               type: 'dir',
               size: 4096,
-              children: {},
             };
+          }
 
-            for (const remote of remotes) {
-              remfs.children[remote] = {
-                type: 'dir',
-                size: 4096,
-              };
-            }
-
-            res.write(JSON.stringify(remfs, null, 2));
-            res.end();
-          });
+          res.write(JSON.stringify(remfs, null, 2));
+          res.end();
         }
         else {
 
           const pathParts = parsePath(reqPath);
-          console.log(pathParts);
           const path = encodePath(pathParts.slice(0, -1));
           try {
-            const lsResult = await rcloneLs(path);
+            const lsResult = await rclone.ls(path);
             res.write(JSON.stringify(rcloneDirToRemfs(lsResult), null, 2));
           }
           catch (e) {
@@ -224,20 +211,22 @@ async function createHandler(options) {
 
       // create directory when request path ends in '/', otherwise upload file
       if (reqPath.endsWith('/')) {
-        const fsPath = fsRoot + reqPath;
+        //const fsPath = fsRoot + reqPath;
 
-        try {
-          await fs.promises.mkdir(fsPath);
-          emit(reqPath, {
-            type: 'create',
-          });
-        }
-        catch (e) {
-          console.error(e);
-          res.statusCode = 400;
-          res.write(e.toString());
-        }
+        //try {
+        //  await fs.promises.mkdir(fsPath);
+        //  emit(reqPath, {
+        //    type: 'create',
+        //  });
+        //}
+        //catch (e) {
+        //  console.error(e);
+        //  res.statusCode = 400;
+        //  res.write(e.toString());
+        //}
 
+        res.statusCode = 500;
+        res.write("create directory not implemented");
         res.end();
       }
       else {
@@ -273,9 +262,10 @@ async function serveItem(req, res, fsRoot, rootPath, reqPath) {
   // TODO: cache this when they first ls the path above
   let lsResult;
   try {
-    lsResult = await rcloneLs(reqPath);
+    lsResult = await rclone.ls(reqPath);
   }
   catch (e) {
+    console.error(e);
     res.statusCode = 404;
     res.write("Not found");
     res.end();
@@ -284,7 +274,6 @@ async function serveItem(req, res, fsRoot, rootPath, reqPath) {
 
   const isFile = lsResult.length === 1 && lsResult[0].Name === path.basename(reqPath);
   const remfs = isFile ? rcloneFileToRemfs(lsResult[0]) : rcloneDirToRemfs(lsResult);
-  console.log(remfs);
 
   if (remfs.type === 'dir') {
     res.statusCode = 404;
@@ -358,11 +347,11 @@ async function serveItem(req, res, fsRoot, rootPath, reqPath) {
       //  start: range.start,
       //  end: range.end,
       //});
-      stream = rcloneCat(reqPath, range.start, range.end + 1 - range.start);
+      stream = rclone.cat(reqPath, range.start, range.end + 1 - range.start);
     }
     else {
       res.setHeader('Content-Length', `${remfs.size}`);
-      stream = rcloneCat(reqPath);
+      stream = rclone.cat(reqPath);
     }
 
     res.setHeader('Accept-Ranges', 'bytes');
@@ -404,56 +393,7 @@ function rcloneFileToRemfs(item) {
   };
 }
 
-async function rcloneLs(reqPath) {
-  console.log("rcloneLs", reqPath);
-  const pathParts = parsePath(reqPath);
-  const rclonePath = pathParts[0] + ':' +  encodePath(pathParts.slice(1)).slice(1);
-  const ls = spawn('rclone', ['lsjson', rclonePath]);
 
-  ls.stdout.setEncoding('utf8');
-
-  let json = '';
-
-  return new Promise((resolve, reject) => {
-    ls.stdout.on('data', (data) => {
-      console.log(data);
-      json += data;
-    });
-
-    ls.stdout.on('end', () => {
-      try {
-        const out = JSON.parse(json);
-        resolve(out);
-      }
-      catch (e) {
-        reject(e);
-      }
-    });
-  })
-}
-
-function rcloneCat(reqPath, offset, count) {
-  const pathParts = parsePath(reqPath);
-  const rclonePath = pathParts[0] + ':' +  encodePath(pathParts.slice(1)).slice(1);
-
-  const args = ['cat'];
-
-  if (offset) {
-    args.push('--offset');
-    args.push(offset);
-  }
-
-  if (count) {
-    args.push('--count');
-    args.push(count);
-  }
-
-  args.push(rclonePath);
-
-  const cat = spawn('rclone', args);
-
-  return cat.stdout;
-}
 
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
