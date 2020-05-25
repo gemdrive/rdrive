@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { ByteCounterStream } = require('./byte_counter.js');
 const { parseToken, parsePath, encodePath, buildRemfsDir } = require('./utils.js');
+const rclone = require('./rclone.js');
 
 
 async function handleUpload(req, res, fsRoot, reqPath, pauth, emit) {
@@ -17,68 +18,72 @@ async function handleUpload(req, res, fsRoot, reqPath, pauth, emit) {
   }
 
   console.log(reqPath);
-  const fsPath = fsRoot + '/' + reqPath;
-  const pathParts = parsePath(reqPath);
+  await rclone.rcat(reqPath, req);
 
-  // TODO: Might not need to traverse here. Maybe just check if the parent
-  // path exists.
-  let curDir = fsRoot;
-  for (const pathPart of pathParts.slice(0, pathParts.length - 1)) {
-    curDir += '/' + pathPart;
+  res.write(JSON.stringify({}));
+  res.end();
+  //const fsPath = fsRoot + '/' + reqPath;
+  //const pathParts = parsePath(reqPath);
 
-    try {
-      await fs.promises.stat(curDir);
-    }
-    catch (e) {
-      res.statusCode = 400;
-      res.write(e.toString());
-      res.end();
-      return;
-    }
-  }
+  //// TODO: Might not need to traverse here. Maybe just check if the parent
+  //// path exists.
+  //let curDir = fsRoot;
+  //for (const pathPart of pathParts.slice(0, pathParts.length - 1)) {
+  //  curDir += '/' + pathPart;
 
-  const stream = fs.createWriteStream(fsPath);
+  //  try {
+  //    await fs.promises.stat(curDir);
+  //  }
+  //  catch (e) {
+  //    res.statusCode = 400;
+  //    res.write(e.toString());
+  //    res.end();
+  //    return;
+  //  }
+  //}
 
-  // emit updates every 10MB
-  const updateByteCount = 10*1024*1024;
-  let count = 0;
-  const byteCounter = new ByteCounterStream(updateByteCount, (n) => {
-    count += n;
-    emit(reqPath, {
-      type: 'update',
-      remfs: {
-        size: count,
-      },
-    });
-  });
+  //const stream = fs.createWriteStream(fsPath);
 
-  emit(reqPath, {
-    type: 'start',
-    remfs: {
-      size: 0,
-    },
-  });
+  //// emit updates every 10MB
+  //const updateByteCount = 10*1024*1024;
+  //let count = 0;
+  //const byteCounter = new ByteCounterStream(updateByteCount, (n) => {
+  //  count += n;
+  //  emit(reqPath, {
+  //    type: 'update',
+  //    remfs: {
+  //      size: count,
+  //    },
+  //  });
+  //});
 
-  req
-    .pipe(byteCounter)
-    .pipe(stream);
+  //emit(reqPath, {
+  //  type: 'start',
+  //  remfs: {
+  //    size: 0,
+  //  },
+  //});
 
-  req.on('end', async () => {
-    const remfsPath = path.dirname(fsPath);
-    const filename = path.basename(fsPath);
+  //req
+  //  .pipe(byteCounter)
+  //  .pipe(stream);
 
-    const remfs = await buildRemfsDir(remfsPath);
-    res.write(JSON.stringify(remfs.children[filename], null, 2));
+  //req.on('end', async () => {
+  //  const remfsPath = path.dirname(fsPath);
+  //  const filename = path.basename(fsPath);
 
-    emit(reqPath, {
-      type: 'complete',
-      remfs: {
-        size: remfs.children[filename].size,
-      },
-    });
+  //  const remfs = await buildRemfsDir(remfsPath);
+  //  res.write(JSON.stringify(remfs.children[filename], null, 2));
 
-    res.end();
-  });
+  //  emit(reqPath, {
+  //    type: 'complete',
+  //    remfs: {
+  //      size: remfs.children[filename].size,
+  //    },
+  //  });
+
+  //  res.end();
+  //});
 }
 
 module.exports = {

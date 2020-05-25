@@ -76,9 +76,33 @@ function rcloneCat(reqPath, offset, count) {
   return cat.stdout;
 }
 
+async function rcat(reqPath, inStream) {
+  const rclonePath = genRclonePath(reqPath);
+  const cmd = spawn('rclone', ['rcat', rclonePath]);
+  inStream.pipe(cmd.stdin);
+
+  return new Promise((resolve, reject) => {
+    cmd.stdin.on('close', () => {
+      resolve();
+    });
+  });
+}
+
+async function rcloneDelete(reqPath) {
+  const rclonePath = genRclonePath(reqPath);
+  const cmd = spawn('rclone', ['delete', rclonePath]);
+}
+
+function genRclonePath(reqPath) {
+  const pathParts = parsePath(reqPath);
+  const rclonePath = pathParts[0] + ':' +  encodePath(pathParts.slice(1)).slice(1);
+  return rclonePath;
+}
+
 
 module.exports = {
   listRemotes,
   ls: rcloneLs,
   cat: rcloneCat,
+  rcat,
 };
