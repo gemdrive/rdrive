@@ -59,6 +59,7 @@ async function createHandler(options) {
   };
 
   return async function(req, res) {
+
     const u = url.parse(req.url); 
     const reqPath = decodeURIComponent(u.pathname.slice(rootPath.length));
 
@@ -341,6 +342,8 @@ async function serveItem(req, res, fsRoot, rootPath, reqPath) {
 
       res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${originalSize}`);
       res.statusCode = 206;
+
+      res.setHeader('Content-Length', range.end - range.start + 1);
 
       //sendFile = sendFile.slice(range.start, range.end + 1);
       //stream = fs.createReadStream(fsPath, {
