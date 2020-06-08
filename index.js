@@ -33,7 +33,14 @@ async function createHandler(options) {
     securityMode = options.securityMode;
   }
 
-  const pauth = await new PauthBuilder().build();
+  let ownerEmail;
+  if (options && options.ownerEmail) {
+    ownerEmail = options.ownerEmail;
+  }
+
+  const pauth = await new PauthBuilder()
+    .ownerEmail(ownerEmail)
+    .build();
 
   const listeners = {};
   const emit = (fullPathStr, event) => {
