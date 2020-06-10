@@ -2,16 +2,17 @@ const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 const { parseToken, parsePath, encodePath, buildRemfsDir } = require('./utils.js');
+const rclone = require('./rclone.js');
+const { Transform } = require('stream');
 
 
 async function handleImage(req, res, fsRoot, reqPath, pauth, emit) {
-
 
   const parts = parsePath(reqPath);
   const size = parseInt(parts[2]);
 
   const srcPathStr = encodePath(parts.slice(3));
-  const srcFsPath = path.join(fsRoot, srcPathStr);
+  const srcPath = path.join(fsRoot, srcPathStr);
 
   const token = parseToken(req);
   const perms = await pauth.getPerms(token);
@@ -22,8 +23,6 @@ async function handleImage(req, res, fsRoot, reqPath, pauth, emit) {
     res.end();
     return;
   }
-
-  console.log(reqPath);
 
   if (reqPath.endsWith('remfs.json')) {
 
@@ -43,8 +42,9 @@ async function handleImage(req, res, fsRoot, reqPath, pauth, emit) {
     return;
   }
 
+  // TODO: fix this branch
   if (srcPathStr.includes('.remfs/images')) {
-    const stream = fs.createReadStream(srcFsPath);
+    const stream = fs.createReadStream(srcPath);
 
     stream.pipe(res);
 
@@ -56,6 +56,7 @@ async function handleImage(req, res, fsRoot, reqPath, pauth, emit) {
     });
   }
   else {
+
     const thumbDir = path.join(fsRoot, encodePath(parts.slice(0, parts.length - 1)));
     const thumbFsPath = path.join(fsRoot, reqPath);
 
@@ -65,19 +66,22 @@ async function handleImage(req, res, fsRoot, reqPath, pauth, emit) {
     stream.on('error', async (e) => {
 
       try {
-        await fs.promises.stat(srcFsPath);
+        const srcStream = rclone.cat('/' + srcPath);
+
         await fs.promises.mkdir(thumbDir, { recursive: true });
 
-        sharp(srcFsPath)
+        const resizer = sharp()
           .resize(size, size, {
             fit: 'inside',
-          })
-          .toBuffer()
-          .then(async (data) => {
-            res.write(data);
-            await fs.promises.writeFile(thumbFsPath, data);
-            res.end();
           });
+
+        const fileWriteStream = fs.createWriteStream(thumbFsPath);
+        const thumbFileWriter = new InlineWriteStream(fileWriteStream);
+
+        srcStream
+          .pipe(resizer)
+          .pipe(thumbFileWriter)
+          .pipe(res);
       }
       catch (e) {
         console.error(e);
@@ -87,6 +91,21 @@ async function handleImage(req, res, fsRoot, reqPath, pauth, emit) {
         return;
       }
     });
+  }
+}
+
+class InlineWriteStream extends Transform {
+
+  constructor(writeStream) {
+    super();
+    this._writeStream = writeStream;
+  }
+
+  _transform(chunk, enc, cb) {
+    // TODO: should probably be checking for backpressure here
+    this._writeStream.write(chunk);
+    this.push(chunk);
+    cb();
   }
 }
 

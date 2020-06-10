@@ -149,7 +149,7 @@ async function createHandler(options) {
         //}
       }
 
-      if (reqPath.startsWith('/.remfs/images')) {
+      if (reqPath.startsWith('/.gemdrive/images')) {
         handleImage(req, res, fsRoot, reqPath, pauth, emit);
         return;
       }
@@ -273,7 +273,6 @@ async function serveItem(req, res, fsRoot, rootPath, reqPath) {
     lsResult = await rclone.ls(reqPath);
   }
   catch (e) {
-    console.error(e);
     res.statusCode = 404;
     res.write("Not found");
     res.end();
