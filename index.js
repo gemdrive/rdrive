@@ -15,6 +15,33 @@ const { handleImage } = require('./images.js');
 const rclone = require('./rclone.js');
 
 
+// TODO: implement cache expiration
+class GemCache {
+  constructor() {
+    this._gems = {};
+  }
+
+  async get(reqPath) {
+
+    if (!this._gems[reqPath]) {
+
+      let lsResult;
+      try {
+        lsResult = await rclone.ls(reqPath);
+      }
+      catch (e) {
+        return { err: "Not found" };
+      }
+
+      const isFile = lsResult.length === 1 && lsResult[0].Name === path.basename(reqPath);
+      this._gems[reqPath] = isFile ? rcloneFileToRemfs(lsResult[0]) : rcloneDirToRemfs(lsResult);
+    }
+
+    return { gem: this._gems[reqPath] };
+  }
+}
+
+
 async function createHandler(options) {
 
   let rootPath = '/';
@@ -64,6 +91,8 @@ async function createHandler(options) {
       }
     }
   };
+
+  const gemCache = new GemCache();
 
   return async function(req, res) {
 
@@ -186,15 +215,17 @@ async function createHandler(options) {
         else {
 
           const pathParts = parsePath(reqPath);
-          const path = encodePath(pathParts.slice(0, -1));
-          try {
-            const lsResult = await rclone.ls(path);
-            res.write(JSON.stringify(rcloneDirToRemfs(lsResult), null, 2));
-          }
-          catch (e) {
+          const gemPath = encodePath(pathParts.slice(0, -1));
+          const result = await gemCache.get(gemPath);
+
+          if (result.err) {
             res.statusCode = 404;
             res.write("Not found");
+            res.end();
+            return;
           }
+
+          res.write(JSON.stringify(result.gem, null, 2));
           res.end();
         }
 
@@ -205,7 +236,7 @@ async function createHandler(options) {
         //res.end();
       }
       else {
-        serveItem(req, res, fsRoot, rootPath, reqPath); 
+        serveItem(req, res, fsRoot, rootPath, reqPath, gemCache); 
       }
     }
     else if (req.method === 'PUT') {
@@ -247,42 +278,26 @@ async function createHandler(options) {
   };
 }
 
-async function serveItem(req, res, fsRoot, rootPath, reqPath) {
+
+async function serveItem(req, res, fsRoot, rootPath, reqPath, gemCache) {
 
   res.setHeader('Cache-Control', 'max-age=3600');
   res.on('error', (e) => {
     console.error(e);
   });
 
-  //const fsPath = path.join(fsRoot, reqPath);
+  const result = await gemCache.get(reqPath);
 
-  //let stats
-  //try {
-  //  stats = await fs.promises.stat(fsPath);
-  //}
-  //catch (e) {
-  //  res.statusCode = 404;
-  //  res.write("Not Found");
-  //  res.end();
-  //  return;
-  //}
-
-  // TODO: cache this when they first ls the path above
-  let lsResult;
-  try {
-    lsResult = await rclone.ls(reqPath);
-  }
-  catch (e) {
+  if (result.err) {
     res.statusCode = 404;
-    res.write("Not found");
+    res.write("Not Found");
     res.end();
     return;
   }
 
-  const isFile = lsResult.length === 1 && lsResult[0].Name === path.basename(reqPath);
-  const remfs = isFile ? rcloneFileToRemfs(lsResult[0]) : rcloneDirToRemfs(lsResult);
+  const gem = result.gem;
 
-  if (remfs.type === 'dir') {
+  if (gem.type === 'dir') {
     res.statusCode = 404;
     res.write("Not found");
     res.end();
@@ -337,14 +352,14 @@ async function serveItem(req, res, fsRoot, rootPath, reqPath) {
       const right = rangeHeader.split('=')[1];
       const rangeParts = right.split('-');
       range.start = Number(rangeParts[0]);
-      range.end = remfs.size - 1;
+      range.end = gem.size - 1;
 
       if (rangeParts[1]) {
         // Need to add one because HTTP ranges are inclusive
         range.end = Number(rangeParts[1]);
       }
 
-      const originalSize = remfs.size;
+      const originalSize = gem.size;
 
       res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${originalSize}`);
       res.statusCode = 206;
@@ -359,7 +374,7 @@ async function serveItem(req, res, fsRoot, rootPath, reqPath) {
       stream = rclone.cat(reqPath, range.start, range.end + 1 - range.start);
     }
     else {
-      res.setHeader('Content-Length', `${remfs.size}`);
+      res.setHeader('Content-Length', `${gem.size}`);
       stream = rclone.cat(reqPath);
     }
 
