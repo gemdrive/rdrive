@@ -269,6 +269,7 @@ async function createHandler(options) {
         res.end();
       }
       else {
+        // TODO: update gemCache after upload
         await handleUpload(req, res, fsRoot, reqPath, pauth, emit);
       }
     }
