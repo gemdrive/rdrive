@@ -13,6 +13,6 @@
   "license": "MIT",
   "dependencies": {
     "pauth": "^0.3.0",
-    "sharp": "^0.25.3"
+    "sharp": "^0.30.5"
   }
 }
